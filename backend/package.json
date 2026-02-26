@@ -1,0 +1,24 @@
+{
+  "name": "smartq-backend",
+  "version": "1.0.0",
+  "description": "AI-Powered Hospital Queue, Patient Register & Revenue Management System using a production-level architecture",
+  "homepage": "https://github.com/Ankit-Mohanty-23/SmartQ#readme",
+  "bugs": {
+    "url": "https://github.com/Ankit-Mohanty-23/SmartQ/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ankit-Mohanty-23/SmartQ.git"
+  },
+  "license": "ISC",
+  "author": "Ankit Mohanty",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "test": "node server.js"
+  },
+  "dependencies": {
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1"
+  }
+}
