@@ -1,0 +1,151 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+//////////////////////////////////////////////////
+// ENUMS
+//////////////////////////////////////////////////
+
+enum Role {
+  ADMIN
+  DOCTOR
+  RECEPTIONIST
+}
+
+enum QueueStatus {
+  WAITING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+//////////////////////////////////////////////////
+// USER MODEL (Doctors, Admin, Receptionist)
+//////////////////////////////////////////////////
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  password     String
+  role         Role
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  doctorQueues Queue[]  @relation("DoctorQueue")
+  payments     Payment[] @relation("PaymentHandledBy")
+
+  @@index([email])
+  @@map("users")
+}
+
+//////////////////////////////////////////////////
+// PATIENT MODEL
+//////////////////////////////////////////////////
+
+model Patient {
+  id        String   @id @default(uuid())
+
+  name      String
+  age       Int
+  gender    String
+  phone     String   @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  queues    Queue[]
+  payments  Payment[]
+
+  @@index([phone])
+  @@map("patients")
+}
+
+//////////////////////////////////////////////////
+// QUEUE MODEL
+//////////////////////////////////////////////////
+
+model Queue {
+  id           String      @id @default(uuid())
+
+  tokenNumber  Int
+  status       QueueStatus @default(WAITING)
+
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  //////////////////////////////////////////////////
+  // RELATIONS
+  //////////////////////////////////////////////////
+
+  patientId    String
+  patient      Patient     @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  doctorId     String
+  doctor       User        @relation("DoctorQueue", fields: [doctorId], references: [id], onDelete: Cascade)
+
+  //////////////////////////////////////////////////
+  // INDEXES
+  //////////////////////////////////////////////////
+
+  @@index([doctorId])
+  @@index([patientId])
+  @@index([status])
+  @@index([createdAt])
+
+  @@map("queues")
+}
+
+//////////////////////////////////////////////////
+// PAYMENT MODEL
+//////////////////////////////////////////////////
+
+model Payment {
+  id          String        @id @default(uuid())
+
+  amount      Decimal       @db.Decimal(10, 2)
+  status      PaymentStatus @default(PENDING)
+
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  //////////////////////////////////////////////////
+  // RELATIONS
+  //////////////////////////////////////////////////
+
+  patientId   String
+  patient     Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  handledById String
+  handledBy   User          @relation("PaymentHandledBy", fields: [handledById], references: [id])
+
+  //////////////////////////////////////////////////
+  // INDEXES
+  //////////////////////////////////////////////////
+
+  @@index([patientId])
+  @@index([handledById])
+  @@index([createdAt])
+
+  @@map("payments")
+}
