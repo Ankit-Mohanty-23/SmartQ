@@ -17,6 +17,12 @@ datasource db {
 // ENUMS
 //////////////////////////////////////////////////
 
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
 enum Role {
   ADMIN
   DOCTOR
@@ -36,25 +42,37 @@ enum PaymentStatus {
   FAILED
 }
 
+enum AppointmentStatus {
+  PENDING       
+  CONFIRMED      
+  REJECTED       
+  CANCELLED     
+  EXPIRED      
+}
+
 //////////////////////////////////////////////////
 // USER MODEL (Doctors, Admin, Receptionist)
 //////////////////////////////////////////////////
 
 model User {
-  id           String   @id @default(uuid())
-  name         String
-  email        String   @unique
-  password     String
-  role         Role
+  id       String @id @default(uuid())
+  name     String
+  email    String @unique
+  password String
+  role     Role
 
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  // Doctor fields (nullable for non-doctors)
+  workStartTime String?  // "09:00"
+  workEndTime   String?  // "17:00"
+  averageConsultationMinutes Int?
 
-  // Relations
-  doctorQueues Queue[]  @relation("DoctorQueue")
-  payments     Payment[] @relation("PaymentHandledBy")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  @@index([email])
+  doctorQueues        Queue[]              @relation("DoctorQueue")
+  appointmentRequests AppointmentRequest[] @relation("DoctorAppointmentRequests")
+  payments            Payment[]            @relation("PaymentHandledBy")
+
   @@map("users")
 }
 
@@ -63,19 +81,17 @@ model User {
 //////////////////////////////////////////////////
 
 model Patient {
-  id        String   @id @default(uuid())
+  id          String   @id @default(uuid())
+  name        String
+  dateOfBirth DateTime
+  gender      Gender
+  phone       String   @unique
 
-  name      String
-  age       Int
-  gender    String
-  phone     String   @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  queues    Queue[]
-  payments  Payment[]
+  queues      Queue[]
+  payments    Payment[]
 
   @@index([phone])
   @@map("patients")
@@ -86,33 +102,30 @@ model Patient {
 //////////////////////////////////////////////////
 
 model Queue {
-  id           String      @id @default(uuid())
+  id String @id @default(uuid())
 
-  tokenNumber  Int
-  status       QueueStatus @default(WAITING)
+  tokenNumber Int
+  status      QueueStatus @default(WAITING)
 
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  //////////////////////////////////////////////////
-  // RELATIONS
-  //////////////////////////////////////////////////
+  patientId String
+  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
 
-  patientId    String
-  patient      Patient     @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctorId String
+  doctor   User   @relation("DoctorQueue", fields: [doctorId], references: [id], onDelete: Cascade)
 
-  doctorId     String
-  doctor       User        @relation("DoctorQueue", fields: [doctorId], references: [id], onDelete: Cascade)
+  visitDate DateTime
 
-  //////////////////////////////////////////////////
-  // INDEXES
-  //////////////////////////////////////////////////
+  estimatedStartTime DateTime?
+  estimatedEndTime   DateTime?
 
   @@index([doctorId])
   @@index([patientId])
   @@index([status])
+  @@index([visitDate])
   @@index([createdAt])
-
   @@map("queues")
 }
 
@@ -121,31 +134,38 @@ model Queue {
 //////////////////////////////////////////////////
 
 model Payment {
-  id          String        @id @default(uuid())
+  id String @id @default(uuid())
 
-  amount      Decimal       @db.Decimal(10, 2)
-  status      PaymentStatus @default(PENDING)
-
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-
-  //////////////////////////////////////////////////
-  // RELATIONS
-  //////////////////////////////////////////////////
-
-  patientId   String
-  patient     Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  amount Float
 
   handledById String
-  handledBy   User          @relation("PaymentHandledBy", fields: [handledById], references: [id])
+  handledBy   User @relation("PaymentHandledBy", fields: [handledById], references: [id], onDelete: Cascade)
 
-  //////////////////////////////////////////////////
-  // INDEXES
-  //////////////////////////////////////////////////
+  patientId String
+  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
 
   @@index([patientId])
   @@index([handledById])
   @@index([createdAt])
-
   @@map("payments")
+}
+
+model AppointmentRequest {
+  id          String   @id @default(uuid())
+
+  name        String
+  phone       String
+  problem     String
+  preferredDate DateTime
+
+  status      AppointmentStatus @default(PENDING)
+
+  assignedDoctorId String?
+  assignedDoctor   User? @relation("DoctorAppointmentRequests", fields: [assignedDoctorId], references: [id])
+
+  createdAt   DateTime @default(now())
+
+  @@map("appointment_requests")
 }
