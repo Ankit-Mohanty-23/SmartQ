@@ -7,7 +7,24 @@ import AppError from "../utils/AppError.js";
  * Register Hospital Staff
  */
 
-export async function registerUserService({ name, email, password, role }) {
+import prisma from "../config/prisma.js";
+import jwt from "jsonwebtoken";
+import bcrypt from "bcrypt";
+import AppError from "../utils/AppError.js";
+
+/**
+ * Register Hospital Staff
+ */
+
+export async function registerUserService({
+  name,
+  email,
+  password,
+  role,
+  workStartTime,
+  workEndTime,
+  averageConsultationMinutes,
+}) {
   const existingUser = await prisma.user.findUnique({
     where: { email },
   });
@@ -18,18 +35,37 @@ export async function registerUserService({ name, email, password, role }) {
 
   const hashPassword = await bcrypt.hash(password, 10);
 
+  // Extra safety (validation middleware should already enforce this)
+  if (role === "DOCTOR") {
+    if (!workStartTime || !workEndTime || !averageConsultationMinutes) {
+      throw new AppError(
+        "Doctor must have workStartTime, workEndTime and averageConsultationMinutes",
+        400
+      );
+    }
+  }
+
   const user = await prisma.user.create({
     data: {
       name,
       email,
       password: hashPassword,
       role,
+
+      ...(role === "DOCTOR" && {
+        workStartTime,
+        workEndTime,
+        averageConsultationMinutes,
+      }),
     },
     select: {
       id: true,
       name: true,
       email: true,
       role: true,
+      workStartTime: true,
+      workEndTime: true,
+      averageConsultationMinutes: true,
       createdAt: true,
     },
   });
@@ -92,6 +128,9 @@ export async function getCurrentUserService(userId) {
       name: true,
       email: true,
       role: true,
+      workStartTime: true,
+      workEndTime: true,
+      averageConsultationMinutes: true,
       createdAt: true,
     },
   });
