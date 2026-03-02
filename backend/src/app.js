@@ -4,6 +4,7 @@ import cors from "cors";
 import globalErrorHandler from "../src/middlewares/error.middleware.js";
 import logger from "./utils/logger.js";
 import userRoutes from "./routes/user.route.js";
+import patientRoutes from "./routes/patient.route.js";
 
 const app = express();
 
@@ -19,6 +20,7 @@ app.use(
 app.use(express.json());
 
 app.use("/api/v1/user", userRoutes);
+app.use("/api/v1/patients", patientRoutes);
 
 app.get("/health", (req, res) => {
     res.status(200).json({
