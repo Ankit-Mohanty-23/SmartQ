@@ -37,7 +37,7 @@ export const loginUser = asyncHandler(async (req, res) => {
  * @access  Private
  */
 
-export const getCurrentUser = async (req, res, next) => {
+export const getCurrentUser = async (req, res) => {
   const user = await userService.getCurrentUserService(req.user?.id);
 
   res.status(200).json({
