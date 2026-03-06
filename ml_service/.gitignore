@@ -1,0 +1,65 @@
+# Python cache
+
+**pycache**/
+*.pyc
+*.pyo
+*.pyd
+*.pyc.*
+
+# Virtual environments
+
+venv/
+.env/
+.envrc
+.venv/
+
+# Jupyter
+
+.ipynb_checkpoints/
+
+# Environment variables
+
+.env
+.env.local
+
+# Logs
+
+*.log
+
+# OS files
+
+.DS_Store
+Thumbs.db
+
+# Python build artifacts
+
+build/
+dist/
+*.egg-info/
+
+# Testing / coverage
+
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Docker
+
+docker-compose.override.yml
+
+# IDE
+
+.vscode/
+.idea/
+
+# Model artifacts (optional)
+
+*.pkl
+*.joblib
+
+# Temporary data
+
+data/
+tmp/
+
+dataset.csv
