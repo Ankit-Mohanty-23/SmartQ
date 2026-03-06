@@ -1,0 +1,30 @@
+# python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# virtual env
+.venv/
+venv/
+env/
+
+# notebooks
+*.ipynb
+
+# datasets
+*.csv
+
+# git
+.git
+.gitignore
+
+# editor
+.vscode/
+.idea/
+
+# system
+.DS_Store
+
+# logs
+*.log
