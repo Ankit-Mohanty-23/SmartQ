@@ -3,7 +3,6 @@
 
 // Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -12,10 +11,6 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
-
-//////////////////////////////////////////////////
-// ENUMS
-//////////////////////////////////////////////////
 
 enum Gender {
   MALE
@@ -29,6 +24,18 @@ enum Role {
   RECEPTIONIST
 }
 
+enum AgeGroup {
+  CHILD
+  ADULT
+  SENIOR
+}
+
+enum VisitType {
+  NEW
+  FOLLOW_UP
+  EMERGENCY
+}
+
 enum QueueStatus {
   WAITING
   IN_PROGRESS
@@ -36,136 +43,205 @@ enum QueueStatus {
   CANCELLED
 }
 
-enum PaymentStatus {
-  PENDING
-  COMPLETED
-  FAILED
-}
-
 enum AppointmentStatus {
-  PENDING       
-  CONFIRMED      
-  REJECTED       
-  CANCELLED     
-  EXPIRED      
+  PENDING
+  CONFIRMED
+  REJECTED
+  CANCELLED
+  EXPIRED
 }
 
-//////////////////////////////////////////////////
-// USER MODEL (Doctors, Admin, Receptionist)
-//////////////////////////////////////////////////
+enum TimeSlot {
+  MORNING
+  AFTERNOON
+  EVENING
+}
+
+enum WeatherCondition {
+  SUNNY
+  CLOUDY
+  RAINING
+  HEAVY_RAIN
+  CYCLONE_WARNING
+  UNKNOWN
+}
+
+enum FallbackType {
+  MODEL
+  CORRECTION_ENGINE
+  DOCTOR_AVERAGE
+}
+
+enum DayOfWeek {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
 
 model User {
-  id       String @id @default(uuid())
+  id       String  @id @default(uuid())
   name     String
-  email    String @unique
+  email    String  @unique
   password String
   role     Role
-
-  // Doctor fields (nullable for non-doctors)
-  workStartTime String?  // "09:00"
-  workEndTime   String?  // "17:00"
-  averageConsultationMinutes Int?
+  isActive Boolean @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  doctorQueues        Queue[]              @relation("DoctorQueue")
-  appointmentRequests AppointmentRequest[] @relation("DoctorAppointmentRequests")
-  payments            Payment[]            @relation("PaymentHandledBy")
+  doctorProfile         DoctorProfile?
+  assignedAppointments  AppointmentRequest[] @relation("AssignedDoctor")
+  convertedAppointments AppointmentRequest[] @relation("ConvertedByReceptionist")
 
   @@map("users")
 }
 
-//////////////////////////////////////////////////
-// PATIENT MODEL
-//////////////////////////////////////////////////
+model DoctorProfile {
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-model Patient {
-  id          String   @id @default(uuid())
-  name        String
-  dateOfBirth DateTime
-  gender      Gender
-  phone       String   @unique
-
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  queues      Queue[]
-  payments    Payment[]
-
-  @@index([phone])
-  @@map("patients")
-}
-
-//////////////////////////////////////////////////
-// QUEUE MODEL
-//////////////////////////////////////////////////
-
-model Queue {
-  id String @id @default(uuid())
-
-  tokenNumber Int
-  status      QueueStatus @default(WAITING)
+  specialization             String
+  workStartTime              String
+  workEndTime                String
+  averageConsultationMinutes Int    @default(15)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  patientId String
-  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  queues            Queue[]
+  correctionFactors CorrectionFactor[]
+  loadHistory       DailyLoadHistory[]
 
-  doctorId String
-  doctor   User   @relation("DoctorQueue", fields: [doctorId], references: [id], onDelete: Cascade)
+  @@map("doctor_profiles")
+}
 
-  visitDate DateTime
+model Queue {
+  id String @id @default(uuid())
 
-  estimatedStartTime DateTime?
-  estimatedEndTime   DateTime?
+  tokenNumber     Int
+  appointmentDate DateTime    @db.Date
+  status          QueueStatus @default(WAITING)
 
-  @@index([doctorId])
-  @@index([patientId])
-  @@index([status])
-  @@index([visitDate])
-  @@index([createdAt])
+  doctorProfileId String
+  doctorProfile   DoctorProfile @relation(fields: [doctorProfileId], references: [id], onDelete: Restrict)
+
+  patientName   String
+  patientPhone  String
+  patientAge    Int
+  ageGroup      AgeGroup
+  patientGender Gender
+  visitType     VisitType
+
+  timeSlot                 TimeSlot
+  predictedDurationMinutes Float
+  mlConfidenceScore        Float?
+  fallbackUsed             FallbackType @default(DOCTOR_AVERAGE)
+
+  estimatedStartTime DateTime
+  estimatedEndTime   DateTime
+
+  actualStartTime       DateTime?
+  actualEndTime         DateTime?
+  actualDurationMinutes Float?
+
+  isDrifting        Boolean          @default(false)
+  isOutlierExcluded Boolean          @default(false)
+  weatherCondition  WeatherCondition @default(UNKNOWN)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  appointmentRequest AppointmentRequest? @relation("TokenFromAppointment")
+
+  @@unique([doctorProfileId, appointmentDate, tokenNumber])
+  @@index([doctorProfileId, appointmentDate, status])
+  @@index([status, estimatedEndTime])
+  @@index([patientPhone, doctorProfileId, appointmentDate])
+  @@index([isOutlierExcluded, actualDurationMinutes])
   @@map("queues")
 }
 
-//////////////////////////////////////////////////
-// PAYMENT MODEL
-//////////////////////////////////////////////////
-
-model Payment {
+model CorrectionFactor {
   id String @id @default(uuid())
 
-  amount Float
+  doctorProfileId String
+  doctorProfile   DoctorProfile @relation(fields: [doctorProfileId], references: [id], onDelete: Cascade)
 
-  handledById String
-  handledBy   User @relation("PaymentHandledBy", fields: [handledById], references: [id], onDelete: Cascade)
+  dayOfWeek DayOfWeek
+  timeSlot  TimeSlot
+  visitType VisitType
 
-  patientId String
-  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  correctionFactor  Float
+  correctedBaseline Float
+  recordCount       Int   @default(0)
+
+  lastUpdated DateTime @updatedAt
+
+  @@unique([doctorProfileId, dayOfWeek, timeSlot, visitType])
+  @@index([doctorProfileId, dayOfWeek, timeSlot])
+  @@index([doctorProfileId, dayOfWeek])
+  @@index([doctorProfileId])
+  @@map("correction_factors")
+}
+
+model DailyLoadHistory {
+  id String @id @default(uuid())
+
+  doctorProfileId String
+  doctorProfile   DoctorProfile @relation(fields: [doctorProfileId], references: [id], onDelete: Cascade)
+
+  recordDate  DateTime  @db.Date
+  dayOfWeek   DayOfWeek
+  dateOfMonth Int
+  month       Int
+  weekOfMonth Int
+
+  isPostHoliday    Boolean          @default(false)
+  isExamSeason     Boolean          @default(false)
+  weatherCondition WeatherCondition @default(UNKNOWN)
+  isPostRainDay    Boolean          @default(false)
+
+  totalPatientsActual Int?
+  predictedPatients   Int?
 
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  @@index([patientId])
-  @@index([handledById])
-  @@index([createdAt])
-  @@map("payments")
+  @@unique([doctorProfileId, recordDate])
+  @@index([doctorProfileId, recordDate])
+  @@map("daily_load_history")
 }
 
 model AppointmentRequest {
-  id          String   @id @default(uuid())
+  id String @id @default(uuid())
 
-  name        String
-  phone       String
-  problem     String
-  preferredDate DateTime
-
-  status      AppointmentStatus @default(PENDING)
+  name          String
+  phone         String
+  problem       String
+  visitType     VisitType         @default(NEW)
+  status        AppointmentStatus @default(PENDING)
+  preferredDate DateTime          @db.Date
 
   assignedDoctorId String?
-  assignedDoctor   User? @relation("DoctorAppointmentRequests", fields: [assignedDoctorId], references: [id])
+  assignedDoctor   User?   @relation("AssignedDoctor", fields: [assignedDoctorId], references: [id], onDelete: SetNull)
 
-  createdAt   DateTime @default(now())
+  convertedById String?
+  convertedBy   User?   @relation("ConvertedByReceptionist", fields: [convertedById], references: [id], onDelete: SetNull)
 
+  queueId              String?   @unique
+  queue                Queue?    @relation("TokenFromAppointment", fields: [queueId], references: [id], onDelete: SetNull)
+  confirmedTokenNumber Int?
+  confirmedDate        DateTime? @db.Date
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, preferredDate])
+  @@index([phone])
   @@map("appointment_requests")
 }
