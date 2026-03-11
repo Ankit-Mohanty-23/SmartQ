@@ -1,240 +1,358 @@
 import prisma from "../config/prisma.js";
 import AppError from "../utils/AppError.js";
+import logger from "../utils/logger.js";
+import { predictDuration } from "../services/ml.service.js";
+import { resolve } from "../engine/factor/fallback.js";
+import { checkOulier } from "../engine/factor/outlierFilter.js";
 
-export async function createQueueService({
-  patientId,
+function combineDateAndTime(dateStr, timeStr) {
+  return new Date(`${dateStr}T${timeStr}`);
+}
+
+function getTimeSlot(hour) {
+  if (hour < 12) return "MORNING";
+  if (hour < 17) return "AFTERNOON";
+  return "EVENING";
+}
+
+function getDayOfWeek(dateStr) {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString("en-US", {
+    weekday: "long",
+    timeZone: "UTC",
+  });
+}
+
+function mapDurationSourceToFallbackType(source) {
+  if (source === "ml_model") return "ML_MODEL";
+  if (source === "correction_engine") return "CORRECTION_ENGINE";
+  return "DOCTOR_AVERAGE";
+}
+
+/**
+ * Create new Queue token
+ */
+
+export async function bookToken({
   doctorId,
-  visitDate,
-  predictedDuration,
+  appointmentDate,
+  patientName,
+  patientAgeGroup,
+  visitType,
+  patientPhone,
+  patientAge,
+  weatherCondition,
+  patientGender,
 }) {
+  const doctor = await prisma.doctorProfile.findUnique({
+    where: { id: doctorId },
+    select: {
+      id: true,
+      workStartTime: true,
+      workEndTime: true,
+      averageConsiltationMinutes: true,
+      isActive: true,
+    },
+  });
+
+  if (!doctor || !doctor.isActive) {
+    throw new AppError("Doctor not found", 404);
+  }
+
   return prisma.$transaction(async (tx) => {
-    const dateObj = new Date(visitDate);
+    const lastToken = await tx.$queryRaw`
+      SELECT token_number, estimated_end_time
+      FROM queues
+      WHERE doctor_profile_id = ${doctorId}
+        AND appointment_date = ${new Date(appointmentDate)}
+        AND status != 'CANCELLED'
+      ORDER BY token_number DESC
+      LIMIT 1
+      FOR UPDATE
+    `;
 
-    const startOfDay = new Date(dateObj);
-    startOfDay.setHours(0, 0, 0, 0);
+    const last = lastToken[0] || null;
+    const nextTokenNumber = last ? last.token_number + 1 : 1;
 
-    const endOfDay = new Date(dateObj);
-    endOfDay.setHours(23, 59, 59, 999);
+    const estimatedStartTime = last
+      ? new Date(last.estimated_end_time)
+      : combineDateAndTime(appointmentDate, doctor.workStartTime);
 
-    const doctor = await tx.user.findUnique({
-      where: { id: doctorId },
-    });
+    const dayOfWeek = getDayOfWeek(appointmentDate);
+    const timeSlot = getTimeSlot(estimatedStartTime.getHours());
+    const month = new Date(appointmentDate).getUTCMonth() + 1;
 
-    if (!doctor || doctor.role !== "DOCTOR") {
-      throw new AppError("Invalid doctor", 400);
-    }
-
-    if (!doctor.workStartTime || !doctor.workEndTime) {
-      throw new AppError("Doctor schedule not configured", 400);
-    }
-
-    const [startHour, startMinute] = doctor.workStartTime.split(":");
-    const [endHour, endMinute] = doctor.workEndTime.split(":");
-
-    const workStart = new Date(visitDate);
-    workStart.setHours(startHour, startMinute, 0, 0);
-
-    const workEnd = new Date(visitDate);
-    workEnd.setHours(endHour, endMinute, 0, 0);
-
-    const lastQueue = await tx.queue.findFirst({
-      where: {
+    let correctionData = null;
+    try {
+      correctionData = await getBaseline({
         doctorId,
-        visitDate: {
-          gte: startOfDay,
-          lte: endOfDay,
-        },
-      },
-      orderBy: {
-        estimatedEndTime: "desc",
-      },
+        dayOfWeek,
+        timeSlot,
+        visitType,
+      });
+    } catch {
+      logger.warn("[queueService] getBaseline failed, continuing");
+    }
+
+    /**
+     * ML Section
+     */
+
+    let mlResult = null;
+    try {
+      mlResult = await predictDuration({
+        doctor_id: doctorId,
+        visit_type: visitType,
+        day_of_week: dayOfWeek,
+        time_slot: timeSlot,
+        month,
+        patient_age_group: patientAgeGroup,
+        corrected_baseline: correctionData?.correctedBaseline ?? null,
+      });
+    } catch {
+      logger.warn("[queueService] predictDuration failed, using fallback");
+    }
+
+    const { resolvedDuration, durationSource, mlConfidence } = resolve({
+      mlResult,
+      correctionData,
+      doctorAvgMinutes: doctor.averageConsultationMinutes,
     });
-
-    const estimatedStartTime = lastQueue
-      ? lastQueue.estimatedEndTime
-      : workStart;
-
-    const finalDuration =
-      predictedDuration || doctor.averageConsultationMinutes || 15;
 
     const estimatedEndTime = new Date(
-      estimatedStartTime.getTime() + finalDuration * 60000,
+      estimatedStartTime.getTime() + resolvedDuration * 60 * 1000,
     );
+    const workEndTime = combineDateAndTime(appointmentDate, doctor.workEndTime);
 
-    if (estimatedEndTime > workEnd) {
-      throw new AppError("Doctor fully booked for selected date", 400);
+    if (estimatedEndTime > workEndTime) {
+      throw new AppError("Queue is full, no more patients accepted", 400);
     }
 
-    const lastToken = await tx.queue.findFirst({
-      where: {
-        doctorId,
-        visitDate: {
-          gte: startOfDay,
-          lte: endOfDay,
-        },
-      },
-      orderBy: {
-        tokenNumber: "desc",
-      },
-    });
-
-    const nextToken = lastToken ? lastToken.tokenNumber + 1 : 1;
-
-    return tx.queue.create({
+    const token = await tx.queue.create({
       data: {
-        patientId,
-        doctorId,
-        visitDate: new Date(visitDate),
-        tokenNumber: nextToken,
+        docterProfileId: doctorId,
+        tokenNumber: nextTokenNumber,
+        appointmentDate: new Date(appointmentDate),
+        patientName,
+        patientPhone,
+        patientAge,
+        patientGender,
+        ageGroup: patientAgeGroup,
+        visitType,
+        timeSlot,
+        predictedDurationMinutes: resolvedDuration,
+        mlConfidenceScore: mlConfidence ?? null,
+        fallbackUsed: mapDurationSourceToFallbackType(durationSource),
         estimatedStartTime,
         estimatedEndTime,
+        weatherCondition: weatherCondition ?? "UNKNOWN",
       },
     });
+
+    const patientsAhead = await tx.queue.count({
+      where: {
+        doctorProfileId: doctorId,
+        appointmentDate: new Date(appointmentDate),
+        status: "WAITING",
+        tokenNumber: {
+          lt: nextTokenNumber,
+        },
+      },
+    });
+
+    return {
+      tokenId: token.id,
+      tokenNumber: nextTokenNumber,
+      estimatedStartTime: estimatedStartTime.toISOString(),
+      estimatedEndTime: estimatedEndTime.toISOString(),
+      predictedDuration: resolvedDuration,
+      patientsAhead,
+      mlConfidence,
+      fallbackUsed: token.fallbackUsed,
+    };
   });
 }
 
 /**
- * Get Queue By ID
+ * Mark token in progress
  */
 
-export async function getQueueByIdService(queueId) {
-  const queue = await prisma.queue.findUnique({
-    where: { id: queueId },
+export async function markInProgress(tokenId) {
+  const token = await prisma.queue.findUnique({
+    where: { id: tokenId },
+  });
+
+  if (!token) {
+    throw new AppError("Token not found", 404);
+  }
+
+  if (token.status !== "WAITING") {
+    throw new AppError("Invaild status transition", 400);
+  }
+
+  return prisma.queue.update({
+    where: { id: tokenId },
+    data: {
+      status: "IN_PROGRESS",
+      actualStartTime: new Date(),
+    },
+  });
+}
+
+/**
+ * Mark token as completed
+ */
+
+export async function markComplete(tokenId) {
+  const token = await prisma.queue.findUnique({
+    where: { id: tokenId },
     include: {
-      patient: true,
-      doctor: {
+      doctorProfile: {
         select: {
-          id: true,
-          name: true,
+          averageConsultationMinutes: true,
         },
       },
     },
   });
 
-  if (!queue) {
-    throw new AppError("Queue not found", 404);
+  if (!token) {
+    throw new AppError("Token not found", 404);
   }
 
-  return queue;
+  if (token.status !== "IN_PROGRESS") {
+    throw new AppError("Invalid status transaction");
+  }
+
+  const actualEndTime = new Date();
+  const actualDurationMinutes = (actualEndTime - token.actualStartTime) / 6000;
+
+  const { isOutlier, deviationRatio } = checkOulier({
+    actualDurationMinutes,
+    predictedDurationMinutes: token.predictedDurationMinutes,
+  });
+
+  await prisma.queue.update({
+    where: { id: tokenId },
+    data: {
+      status: "COMPLETED",
+      actualEndTime,
+      actualDurationMinutes,
+      isOutlierExcluded: isOutlier,
+    },
+  });
+
+  if (!isOutlier) {
+    const dayOfWeek = getDayOfWeek(
+      token.appointmentDate.toISOString().split("T")[0],
+    );
+
+    await updateAfterConsultation({
+      doctorId: token.doctorProfileId,
+      dayOfWeek,
+      timeSlot: token.timeSlot,
+      visitType: token.visitType,
+      actualDurationMinutes,
+      doctorAvgMinutes: token.doctorProfile.averageConsultationMinutes,
+    });
+  }
+
+  if (token.isDrifting) {
+    await recalibratedAfterDrift({
+      ...token,
+      actualEndTime,
+    });
+  }
+
+  emit("token_completed", {
+    doctorId: token.doctorProfileId,
+    tokenId,
+    tokenNumber: token.tokenNumber,
+    isOutlier,
+    deviationRatio,
+  });
+
+  return {
+    tokenId,
+    actualDurationMinutes,
+    isOutlier,
+    deviationRatio,
+  };
 }
 
-export async function getDoctorQueueService(docterId, date) {
-  const dateObj = new Date(date);
+/**
+ * Get Queue data
+ */
 
-  const startOfDay = new Date(dateObj);
-  startOfDay.setHours(0, 0, 0, 0);
-
-  const endOfDay = new Date(dateObj);
-  endOfDay.setHours(23, 59, 59, 999);
-
+async function getQueue(doctorId, date) {
   return prisma.queue.findMany({
     where: {
-      docterId,
-      visitDate: {
-        gte: startOfDay,
-        lte: endOfDay,
+      doctorProfileId: doctorId,
+      appointmentDate: new Date(date),
+      status: {
+        in: ["WAITING", "IN_PROGRESS"],
       },
     },
     orderBy: {
       tokenNumber: "asc",
     },
+  });
+}
+
+/**
+ * Get Queue data for patients
+ */
+
+export async function getPatientView(tokenId) {
+  const token = await prisma.queue.findUnique({
+    where: { id: tokenId },
     include: {
-      patient: true,
+      doctorProfile: { select: { name: true, specialization: true } },
     },
   });
-}
 
-/**
- * Update Queue Status
- */
+  if (!token) throw { code: "TOKEN_NOT_FOUND" };
 
-export async function updateQueueStatusService(queueId, status) {
-  const queue = await prisma.queue.findUnique({
+  const currentlyServing = await prisma.queue.findFirst({
     where: {
-      id: queueId,
+      doctorProfileId: token.doctorProfileId,
+      appointmentDate: token.appointmentDate,
+      status: "IN_PROGRESS",
     },
+    select: { tokenNumber: true },
   });
-
-  if (!queue) {
-    throw new AppError("Queue not found", 404);
-  }
-
-  return prisma.queue.update({
-    where: { id: queueId },
-    data: { status },
-  });
-}
-
-/**
- * Track Queue Status (Public)
- */
-
-export async function trackQueueService({ docterId, tokenNumber, visitDate }) {
-  const dateObj = new Date(visitDate);
-
-  const startOfDay = new Date(dateObj);
-  startOfDay.setHours(0, 0, 0, 0);
-
-  const endOfDay = new Date(dateObj);
-  endOfDay.setHours(23, 59, 59, 999);
-
-  const queue = await prisma.queue.findFirst({
-    where: {
-      docterId,
-      tokenNumber,
-      visitDate: {
-        gte: startOfDay,
-        lte: endOfDay,
-      },
-    },
-  });
-
-  if (!queue) {
-    throw new AppError("Queue not found", 404);
-  }
 
   const patientsAhead = await prisma.queue.count({
     where: {
-      docterId,
-      visitDate: {
-        gte: startOfDay,
-        lte: endOfDay,
-      },
-      tokenNumber: {
-        lt: tokenNumber,
-      },
+      doctorProfileId: token.doctorProfileId,
+      appointmentDate: token.appointmentDate,
       status: "WAITING",
+      tokenNumber: { lt: token.tokenNumber },
     },
   });
 
+  const waitingAhead = await prisma.queue.findMany({
+    where: {
+      doctorProfileId: token.doctorProfileId,
+      appointmentDate: token.appointmentDate,
+      status: "WAITING",
+      tokenNumber: { lt: token.tokenNumber },
+    },
+    select: { predictedDurationMinutes: true },
+  });
+
+  const estimatedWaitMinutes = waitingAhead.reduce(
+    (sum, t) => sum + t.predictedDurationMinutes,
+    0,
+  );
+
   return {
-    status: queue.status,
-    tokenNumber: queue.tokenNumber,
+    tokenNumber: token.tokenNumber,
+    status: token.status,
+    currentlyServing: currentlyServing?.tokenNumber ?? null,
     patientsAhead,
-    estimatedStartTime: queue.estimatedStartTime,
-    estimatedEndTime: queue.estimatedEndTime,
+    estimatedStartTime: token.estimatedStartTime,
+    estimatedWaitMinutes,
+    isDrifting: token.isDrifting,
+    doctor: token.doctorProfile,
   };
-}
-
-/**
- * Cancel Queue Entry
- */
-
-export async function cancelQueueService(queueId) {
-  const queue = await prisma.queue.findUnique({
-    where: { id: queueId },
-  });
-
-  if (!queue) {
-    throw new AppError("Queue not found", 404);
-  }
-
-  if (queue.status === "COMPLETED") {
-    throw new AppError("Completed queue cannot be cancelled", 400);
-  }
-
-  return prisma.queue.update({
-    where: { id: queueId },
-    data: { status: "CANCELLED" },
-  });
 }
