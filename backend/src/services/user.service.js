@@ -28,7 +28,6 @@ export async function registerUserService({
   const hashPassword = await bcrypt.hash(password, 10);
 
   const result = await prisma.$transaction(async (tx) => {
-
     const user = await tx.user.create({
       data: {
         name,
@@ -41,7 +40,6 @@ export async function registerUserService({
     let doctorProfile = null;
 
     if (role === "DOCTOR") {
-
       if (!specialization || !workStartTime || !workEndTime) {
         throw new AppError("Doctor profile fields missing", 400);
       }
@@ -91,7 +89,7 @@ export async function loginUserService({ email, password }) {
   }
 
   const token = jwt.sign(
-    { 
+    {
       id: user.id,
       role: user.role,
       doctorProfileId: user.doctorProfile?.id || null,
@@ -110,12 +108,15 @@ export async function loginUserService({ email, password }) {
 }
 
 /**
- * Get Current Logged-in User
+ * Get User Details
  */
 
 export async function getCurrentUserService(userId) {
   const user = await prisma.user.findUnique({
-    where: { id: userId },
+    where: { 
+      id: userId,
+      isActive: true,
+    },
     select: {
       id: true,
       name: true,
@@ -123,13 +124,10 @@ export async function getCurrentUserService(userId) {
       role: true,
       isActive: true,
       createdAt: true,
-
       doctorProfile: {
         select: {
           specialization: true,
           workStartTime: true,
-          workEndTime: true,
-          averageConsultationMinutes: true,
         },
       },
     },
@@ -146,10 +144,10 @@ export async function getCurrentUserService(userId) {
  * User logout
  */
 
-export async function userLogoutService(){
+export async function userLogoutService() {
   return {
     success: true,
-    message: "Logged out Successfully"
+    message: "Logged out Successfully",
   };
 }
 
@@ -157,20 +155,20 @@ export async function userLogoutService(){
  * Get All Users Service
  */
 
-export async function getAllUsersService({ role, isActive}){
+export async function getAllUsersService({ role, isActive }) {
   const users = await prisma.user.findMany({
-    where: { 
+    where: {
       role: role || undefined,
       isActive: isActive !== undefined ? isActive : undefined,
     },
-    select: { 
+    select: {
       id: true,
       name: true,
       role: true,
       doctorProfile: {
-        select: { specialization: true }
-      }
-    }
+        select: { specialization: true },
+      },
+    },
   });
 
   return users;
@@ -180,47 +178,47 @@ export async function getAllUsersService({ role, isActive}){
  * Update User Service
  */
 
-export async function updateUserService(userId, data){
-  const existingUser = await prisma.user.findUnique({
+export async function updateUserService(userId, data) {
+  const user = await prisma.user.findUnique({
     where: { id: userId },
-    include: { doctorProfileId: true }
+    include: { doctorProfile: true },
   });
 
-  if(!user || user.isActive){
+  if (!user || !user.isActive) {
     throw new AppError("User not found", 404);
   }
 
-  const { 
-    name, 
-    email, 
-    specialization, 
-    workStartTime, 
-    workEndTime, 
-    averageConsultationMinutes
-   } = data;
+  const {
+    name,
+    email,
+    specialization,
+    workStartTime,
+    workEndTime,
+    averageConsultationMinutes,
+  } = data;
 
-   if(email && email !== user.email){
+  if (email && email !== user.email) {
     const emailExists = await prisma.user.findUnique({
-      where: { email }
+      where: { email },
     });
 
-    if(emailExists){
-      throw new AppError("Email already in use" ,409);
+    if (emailExists) {
+      throw new AppError("Email already in use", 409);
     }
-   }
+  }
 
-   const result = await prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const updatedUser = await tx.user.update({
       where: { id: userId },
-      data :{
+      data: {
         name: name ?? user.name,
-        email: email ?? user.email
-      }
+        email: email ?? user.email,
+      },
     });
 
     let doctorProfile = null;
 
-    if(user.role === "DOCTOR"){
+    if (user.role === "DOCTOR") {
       doctorProfile = await tx.doctorProfile.update({
         where: { userId: userId },
         data: {
@@ -229,8 +227,8 @@ export async function updateUserService(userId, data){
           workEndTime: workEndTime ?? user.doctorProfile?.workEndTime,
           averageConsultationMinutes:
             averageConsultationMinutes ??
-            user.doctorProfile?.averageConsultationMinutes
-        }
+            user.doctorProfile?.averageConsultationMinutes,
+        },
       });
     }
 
@@ -239,46 +237,49 @@ export async function updateUserService(userId, data){
       name: updatedUser.name,
       email: updatedUser.email,
       role: updatedUser.role,
-      doctorProfile
+      doctorProfile,
     };
-   });
+  });
 
-   return result;
+  return result;
 }
 
 /**
  * Deactivate User Service
  */
 
-export async function deactivateUserService(userId){
-  const existingUser = await prisma.user.findUnique({
+export async function deactivateUserService(userId) {
+  const user = await prisma.user.findUnique({
     where: { id: userId },
-    include: { doctorProfile: true }
-  })
+    include: { doctorProfile: true },
+  });
 
-  if(!existingUser){
+  if (!user) {
     throw new AppError("User not found", 404);
   }
 
-  if(!existingUser.isActive){
+  if (!user.isActive) {
     throw new AppError("User Account is already deactivated", 400);
   }
 
-  if(user.role === "DOCTOR" && user.doctorProfile){
+  if (user.role === "DOCTOR" && user.doctorProfile) {
     const futureTokens = await prisma.queue.findFirst({
       where: {
         doctorProfileId: user.doctorProfile.id,
         appointmentDate: {
-          gte: new Date()
+          gte: new Date(),
         },
         status: {
-          in: ["WAITING", "IN_PROGRESS"]
-        }
-      }
+          in: ["WAITING", "IN_PROGRESS"],
+        },
+      },
     });
 
-    if(futureTokens){
-      throw new AppError("Doctor has upcoming appointments. Cannot deactivate", 409);
+    if (futureTokens) {
+      throw new AppError(
+        "Doctor has upcoming appointments. Cannot deactivate",
+        409,
+      );
     }
   }
 
@@ -293,8 +294,8 @@ export async function deactivateUserService(userId){
       email: true,
       role: true,
       isActive: true,
-      updatedAt: true
-    }
+      updatedAt: true,
+    },
   });
 
   return updatedUser;
