@@ -1,7 +1,7 @@
-import { predictConsultationDuration } from "../services/ml.service.js";
+import { predictDuration } from "../services/ml.service.js";
 import * as queueService from "../services/queue.service.js";
 import AppError from "../utils/AppError.js";
-import asyncHandler from "../utils/asyncHandler.js";
+import { asyncHandler } from "../utils/asyncHandler.js";
 
 /**
  * @desc    Create Queue
@@ -10,22 +10,28 @@ import asyncHandler from "../utils/asyncHandler.js";
  */
 
 export const createQueue = asyncHandler(async (req, res) => {
-  const { patientId, doctorId, visitDate } = req.body;
-
-  let predictedDuration = null;
-
-  if (process.env.ENABLE_ML === "true") {
-    predictedDuration = await predictConsultationDuration({
-      doctorId,
-      visitDate,
-    });
-  }
-
-  const queue = await queueService.createQueueService({
-    patientId,
+  const {
     doctorId,
-    visitDate,
-    predictedDuration,
+    appointmentDate,
+    patientName,
+    patientAgeGroup,
+    visitType,
+    patientPhone,
+    patientAge,
+    patientGender,
+    weatherCondition,
+  } = req.body;
+
+  const queue = await queueService.bookTokenService({
+    doctorId,
+    appointmentDate,
+    patientName,
+    patientAgeGroup,
+    visitType,
+    patientPhone,
+    patientAge,
+    patientGender,
+    weatherCondition: weatherCondition ?? "UNKNOWN",
   });
 
   res.status(201).json({
@@ -35,15 +41,32 @@ export const createQueue = asyncHandler(async (req, res) => {
 });
 
 /**
- * @desc    Get Queue By ID
- * @route   GET /api/v1/patient/:id
+ * @desc    mark Queue In Progress 
+ * @route   GET /api/v1/queue/:id
  * @access  Private
  */
 
-export const getQueueById = asyncHandler(async (req, res) => {
+export const markQueueInProgress = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
-  const queue = await queueService.getQueueByIdService(id);
+  const queue = await queueService.markInProgressService(id);
+
+  res.status(200).json({
+    success: true,
+    data: queue,
+  });
+});
+
+/**
+ * @desc    mark Queue Completed 
+ * @route   GET /api/v1/queue/:id
+ * @access  Private
+ */
+
+export const markQueueCompleted = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const queue = await queueService.markCompleteService(id);
 
   res.status(200).json({
     success: true,
@@ -53,7 +76,7 @@ export const getQueueById = asyncHandler(async (req, res) => {
 
 /**
  * @desc    Get Doctor Queue By Date
- * @route   GET /api/v1/queue/:doctorId
+ * @route   GET /api/v1/queue/:doctorId/track
  * @access  Private
  */
 
@@ -65,7 +88,7 @@ export const getDoctorQueue = asyncHandler(async (req, res) => {
     throw new AppError("Date query param required", 400);
   }
 
-  const queues = await getDoctorQueueService(doctorId, date);
+  const queues = await queueService.getQueueService(doctorId, date);
 
   res.status(200).json({
     status: "success",
@@ -75,37 +98,15 @@ export const getDoctorQueue = asyncHandler(async (req, res) => {
 });
 
 /**
- * @desc    Update Queue Status
- * @route   GET /api/v1/queue/:id/status
- * @access  Private
- */
-
-export const updateQueueStatus = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-  const { status } = req.body;
-
-  const updated = await updateQueueStatusService(id, status);
-
-  res.status(200).json({
-    status: "success",
-    data: updated,
-  });
-});
-
-/**
- * @desc    Track Queue
- * @route   GET /api/v1/queue/track
+ * @desc    Get patient data
+ * @route   GET /api/v1/queue/:tokenId
  * @access  Public
  */
 
-export const trackQueue = asyncHandler(async (req, res) => {
-  const { doctorId, tokenNumber, visitDate } = req.query;
+export const getPatientView = asyncHandler(async (req, res) => {
+  const { tokenId } = req.params;
 
-  const result = await trackQueueService({
-    doctorId,
-    tokenNumber: Number(tokenNumber),
-    visitDate,
-  });
+  const result = await queueService.getPatientViewService({ tokenId });
 
   res.status(200).json({
     status: "success",
@@ -122,7 +123,7 @@ export const trackQueue = asyncHandler(async (req, res) => {
 export const cancelQueue = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
-  const cancelled = await cancelQueueService(id);
+  const cancelled = await queueService.cancelQueueService(id);
 
   res.status(200).json({
     status: "success",
