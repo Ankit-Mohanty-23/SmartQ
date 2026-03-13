@@ -3,7 +3,8 @@ import AppError from "../utils/AppError.js";
 import logger from "../utils/logger.js";
 import { predictDuration } from "../services/ml.service.js";
 import { resolve } from "../engine/factor/fallback.js";
-import { checkOulier } from "../engine/factor/outlierFilter.js";
+import { checkOutlier } from "../engine/factor/outlierFilter.js";
+import { emit } from "../services/websocket.service.js";
 
 function combineDateAndTime(dateStr, timeStr) {
   return new Date(`${dateStr}T${timeStr}`);
@@ -33,7 +34,7 @@ function mapDurationSourceToFallbackType(source) {
  * Create new Queue token
  */
 
-export async function bookToken({
+export async function bookTokenService({
   doctorId,
   appointmentDate,
   patientName,
@@ -45,37 +46,39 @@ export async function bookToken({
   patientGender,
 }) {
   const doctor = await prisma.doctorProfile.findUnique({
-    where: { id: doctorId },
+    where: { userId: doctorId },
     select: {
       id: true,
       workStartTime: true,
       workEndTime: true,
-      averageConsiltationMinutes: true,
-      isActive: true,
+      averageConsultationMinutes: true,
+      user: {
+        select: { isActive: true },
+      },
     },
   });
 
-  if (!doctor || !doctor.isActive) {
+  if (!doctor || !doctor.user.isActive) {
     throw new AppError("Doctor not found", 404);
   }
 
   return prisma.$transaction(async (tx) => {
     const lastToken = await tx.$queryRaw`
-      SELECT token_number, estimated_end_time
+      SELECT "tokenNumber", "estimatedEndTime"
       FROM queues
-      WHERE doctor_profile_id = ${doctorId}
-        AND appointment_date = ${new Date(appointmentDate)}
+      WHERE "doctorProfileId" = ${doctor.id}
+        AND "appointmentDate" = ${new Date(appointmentDate)}
         AND status != 'CANCELLED'
-      ORDER BY token_number DESC
+      ORDER BY "tokenNumber" DESC
       LIMIT 1
       FOR UPDATE
     `;
 
     const last = lastToken[0] || null;
-    const nextTokenNumber = last ? last.token_number + 1 : 1;
+    const nextTokenNumber = last ? last.tokenNumber + 1 : 1;
 
     const estimatedStartTime = last
-      ? new Date(last.estimated_end_time)
+      ? new Date(last.estimatedEndTime)
       : combineDateAndTime(appointmentDate, doctor.workStartTime);
 
     const dayOfWeek = getDayOfWeek(appointmentDate);
@@ -130,7 +133,7 @@ export async function bookToken({
 
     const token = await tx.queue.create({
       data: {
-        docterProfileId: doctorId,
+        doctorProfileId: doctor.id,
         tokenNumber: nextTokenNumber,
         appointmentDate: new Date(appointmentDate),
         patientName,
@@ -151,7 +154,7 @@ export async function bookToken({
 
     const patientsAhead = await tx.queue.count({
       where: {
-        doctorProfileId: doctorId,
+        doctorProfileId: doctor.id,
         appointmentDate: new Date(appointmentDate),
         status: "WAITING",
         tokenNumber: {
@@ -177,7 +180,7 @@ export async function bookToken({
  * Mark token in progress
  */
 
-export async function markInProgress(tokenId) {
+export async function markInProgressService(tokenId) {
   const token = await prisma.queue.findUnique({
     where: { id: tokenId },
   });
@@ -187,7 +190,15 @@ export async function markInProgress(tokenId) {
   }
 
   if (token.status !== "WAITING") {
-    throw new AppError("Invaild status transition", 400);
+    throw new AppError("Invalid status transition", 400);
+  }
+
+  const now = new Date();
+  if (now < token.estimatedStartTime) {
+    throw new AppError(
+      "Cannot start token before its scheduled start time",
+      400,
+    );
   }
 
   return prisma.queue.update({
@@ -203,7 +214,7 @@ export async function markInProgress(tokenId) {
  * Mark token as completed
  */
 
-export async function markComplete(tokenId) {
+export async function markCompleteService(tokenId) {
   const token = await prisma.queue.findUnique({
     where: { id: tokenId },
     include: {
@@ -224,9 +235,9 @@ export async function markComplete(tokenId) {
   }
 
   const actualEndTime = new Date();
-  const actualDurationMinutes = (actualEndTime - token.actualStartTime) / 6000;
+  const actualDurationMinutes = (actualEndTime - token.actualStartTime) / 60000;
 
-  const { isOutlier, deviationRatio } = checkOulier({
+  const { isOutlier, deviationRatio } = checkOutlier({
     actualDurationMinutes,
     predictedDurationMinutes: token.predictedDurationMinutes,
   });
@@ -283,7 +294,7 @@ export async function markComplete(tokenId) {
  * Get Queue data
  */
 
-async function getQueue(doctorId, date) {
+export async function getQueueService(doctorId, date) {
   return prisma.queue.findMany({
     where: {
       doctorProfileId: doctorId,
@@ -302,15 +313,22 @@ async function getQueue(doctorId, date) {
  * Get Queue data for patients
  */
 
-export async function getPatientView(tokenId) {
+export async function getPatientViewService({ tokenId }) {
   const token = await prisma.queue.findUnique({
     where: { id: tokenId },
     include: {
-      doctorProfile: { select: { name: true, specialization: true } },
+      doctorProfile: {
+        select: {
+          specialization: true,
+          user: { select: { name: true } },
+        },
+      },
     },
   });
 
-  if (!token) throw { code: "TOKEN_NOT_FOUND" };
+  if (!token) {
+    throw new AppError("Token not found", 404);
+  }
 
   const currentlyServing = await prisma.queue.findFirst({
     where: {
@@ -353,6 +371,70 @@ export async function getPatientView(tokenId) {
     estimatedStartTime: token.estimatedStartTime,
     estimatedWaitMinutes,
     isDrifting: token.isDrifting,
-    doctor: token.doctorProfile,
+    doctorName: token.doctorProfile.user.name,
+    specialization: token.doctorProfile.specialization,
+  };
+}
+
+/**
+ * Cancel token
+ */
+
+export async function cancelQueueService(tokenId) {
+  const token = await prisma.queue.findUnique({
+    where: { id: tokenId },
+  });
+
+  if (!token) {
+    throw new AppError("Token not found", 404);
+  }
+
+  if (token.status === "CANCELLED" || token.status === "COMPLETED") {
+    throw new AppError("Invalid status transition", 400);
+  }
+
+  await prisma.queue.update({
+    where: { id: tokenId },
+    data: { status: "CANCELLED" },
+  });
+
+  const waitingAfter = await prisma.queue.findMany({
+    where: {
+      doctorProfileId: token.doctorProfileId,
+      appointmentDate: token.appointmentDate,
+      status: "WAITING",
+      tokenNumber: { gt: token.tokenNumber },
+    },
+    orderBy: { tokenNumber: "asc" },
+  });
+
+  let runningTime = token.estimatedStartTime;
+
+  for (const t of waitingAfter) {
+    const newStart = new Date(runningTime);
+    const newEnd = new Date(
+      newStart.getTime() + t.predictedDurationMinutes * 60 * 1000,
+    );
+
+    await prisma.queue.update({
+      where: { id: t.id },
+      data: {
+        estimatedStartTime: newStart,
+        estimatedEndTime: newEnd,
+      },
+    });
+
+    runningTime = newEnd;
+  }
+
+  emit("token_cancelled", {
+    doctorId: token.doctorProfileId,
+    tokenId,
+    tokenNumber: token.tokenNumber,
+  });
+
+  return {
+    tokenId,
+    status: "CANCELLED",
   };
 }
