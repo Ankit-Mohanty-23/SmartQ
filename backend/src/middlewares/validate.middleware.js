@@ -49,8 +49,7 @@ export const validate = (schema) => (req, res, next) => {
           }))
         });
       }
-
-      req.query = result.data;
+      Object.assign(req.query, result.data);
     }
 
     // USER
