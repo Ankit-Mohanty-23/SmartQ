@@ -8,7 +8,7 @@ import {
   trackQueueSchema,
 } from "../validations/queue.validate.js";
 
-const router = Router;
+const router = Router();
 
 /**
  * Staff Protected Routes
@@ -20,22 +20,18 @@ router.post(
   queueController.createQueue,
 );
 
-router.get("/:id", auth, queueController.getQueueById);
+router.patch("/:id/ongoing", auth, queueController.markQueueInProgress);
 
-router.get("/doctor/:doctorId", auth, queueController.getDoctorQueue);
+router.patch("/:id/complete", auth, queueController.markQueueCompleted);
 
-router.patch(
-  "/:id/status",
-  auth,
-  validate(updateQueueStatusSchema),
-  queueController.updateQueueStatus,
-);
+router.get("/:doctorId/track", auth, queueController.getDoctorQueue);
 
 router.patch("/:id/cancel", auth, queueController.cancelQueue);
 
 /**
  * Public Route
  */
-router.get("/track", validate(trackQueueSchema), queueController.trackQueue);
+
+router.get("/:tokenId/patient", auth, queueController.getPatientView);
 
 export default router;
