@@ -1,9 +1,4 @@
-fastapi
-uvicorn
+fastapi==0.115.14
+uvicorn[standard]==0.35.0
 numpy==2.4.2
-pandas==3.0.1
-scikit-learn==1.8.0
-xgboost==3.2.0
-joblib==1.5.3
-python-dateutil==2.9.0.post0
-tzdata==2025.3
+onnxruntime==1.22.0
