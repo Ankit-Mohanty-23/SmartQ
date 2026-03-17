@@ -46,9 +46,8 @@ export async function bookTokenService({
   patientGender,
 }) {
   const doctor = await prisma.doctorProfile.findUnique({
-    where: { userId: doctorId },
+    where: { id : doctorId },
     select: {
-      id: true,
       workStartTime: true,
       workEndTime: true,
       averageConsultationMinutes: true,
@@ -58,8 +57,12 @@ export async function bookTokenService({
     },
   });
 
-  if (!doctor || !doctor.user.isActive) {
+  if (!doctor) {
     throw new AppError("Doctor not found", 404);
+  }
+   
+  if (!doctor.user.isActive) {
+    throw new AppError("Doctor is not active", 403);
   }
 
   return prisma.$transaction(async (tx) => {
@@ -133,7 +136,7 @@ export async function bookTokenService({
 
     const token = await tx.queue.create({
       data: {
-        doctorProfileId: doctor.id,
+        doctorProfileId: doctorId,
         tokenNumber: nextTokenNumber,
         appointmentDate: new Date(appointmentDate),
         patientName,
