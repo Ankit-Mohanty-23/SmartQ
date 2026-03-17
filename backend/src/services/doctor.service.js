@@ -49,7 +49,6 @@ export async function getDoctorByIdService(doctorId) {
     include: {
       user: {
         select: {
-          id: true,
           name: true,
           email: true,
           isActive: true,
@@ -69,8 +68,8 @@ export async function getDoctorByIdService(doctorId) {
  * Update Doctor data
  */
 
-export async function updateDoctorService(doctorId) {
-  const doctor = await prisma.doctorProfile.update({
+export async function updateDoctorService(doctorId, data) {
+  const doctor = await prisma.doctorProfile.findUnique({
     where: { id: doctorId },
   });
 
@@ -78,7 +77,7 @@ export async function updateDoctorService(doctorId) {
     throw new AppError("Doctor not found", 404);
   }
 
-  const updateDoctor = await prisma.doctorProfile.update({
+  const updatedDoctor = await prisma.doctorProfile.update({
     where: {
       id: doctorId,
     },
@@ -91,7 +90,6 @@ export async function updateDoctorService(doctorId) {
     include: {
       user: {
         select: {
-          id: true,
           name: true,
           email: true,
         },
@@ -99,5 +97,5 @@ export async function updateDoctorService(doctorId) {
     },
   });
 
-  return updateDoctor;
+  return updatedDoctor;
 }
