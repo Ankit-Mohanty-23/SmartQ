@@ -54,7 +54,7 @@ export const getCurrentUser = async (req, res) => {
  */
 
 export const userLogout = asyncHandler(async(req, res) => {
-  const logout = await userLogoutService();
+  const logout = await userService.userLogoutService();
 
   res.clearCookie("token");
 
