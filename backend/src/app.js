@@ -6,6 +6,7 @@ import logger from "./utils/logger.js";
 import userRoutes from "./routes/user.route.js";
 import doctorRoutes from "./routes/doctor.route.js";
 import queueRoutes from "./routes/queue.route.js";
+import queueAppointment from "./routes/appointment.route.js";
 
 const app = express();
 
@@ -23,6 +24,7 @@ app.use(express.json());
 app.use("/api/v1/users", userRoutes);
 app.use("/api/v1/doctors", doctorRoutes);
 app.use("/api/v1/queue", queueRoutes);
+app.use("/api/v1/appointments", queueAppointment);
 
 app.get("/api/v1/health", (req, res) => {
   res.status(200).json({
