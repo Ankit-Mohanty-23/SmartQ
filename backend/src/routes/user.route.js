@@ -17,7 +17,7 @@ router.post(
   userController.loginUser,
 );
 router.get("/me", auth, userController.getCurrentUser);
-router.post("/logout", auth, userController.userLogout);
+router.get("/logout", auth, userController.userLogout);
 router.get(
   "/",
   auth,
