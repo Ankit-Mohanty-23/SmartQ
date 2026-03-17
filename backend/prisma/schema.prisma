@@ -1,8 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 generator client {
   provider = "prisma-client-js"
 }
@@ -94,7 +89,6 @@ model User {
   updatedAt DateTime @updatedAt
 
   doctorProfile         DoctorProfile?
-  assignedAppointments  AppointmentRequest[] @relation("AssignedDoctor")
   convertedAppointments AppointmentRequest[] @relation("ConvertedByReceptionist")
 
   @@map("users")
@@ -110,12 +104,15 @@ model DoctorProfile {
   workEndTime                String
   averageConsultationMinutes Int    @default(15)
 
+  isActive Boolean @default(true)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  queues            Queue[]
-  correctionFactors CorrectionFactor[]
-  loadHistory       DailyLoadHistory[]
+  queues               Queue[]
+  correctionFactors    CorrectionFactor[]
+  loadHistory          DailyLoadHistory[]
+  assignedAppointments AppointmentRequest[] @relation("AssignedDoctor")
 
   @@map("doctor_profiles")
 }
@@ -223,12 +220,14 @@ model AppointmentRequest {
   name          String
   phone         String
   problem       String
+  patientAge    Int
+  patientGender Gender
   visitType     VisitType         @default(NEW)
   status        AppointmentStatus @default(PENDING)
   preferredDate DateTime          @db.Date
 
   assignedDoctorId String?
-  assignedDoctor   User?   @relation("AssignedDoctor", fields: [assignedDoctorId], references: [id], onDelete: SetNull)
+  assignedDoctor   DoctorProfile? @relation("AssignedDoctor", fields: [assignedDoctorId], references: [id], onDelete: SetNull)
 
   convertedById String?
   convertedBy   User?   @relation("ConvertedByReceptionist", fields: [convertedById], references: [id], onDelete: SetNull)
