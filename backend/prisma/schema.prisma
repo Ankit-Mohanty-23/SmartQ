@@ -53,10 +53,14 @@ enum TimeSlot {
 }
 
 enum WeatherCondition {
-  SUNNY
-  CLOUDY
-  RAINING
-  HEAVY_RAIN
+  SUNNY_NORMAL
+  SUNNY_HOT
+  SUNNY_EXTREME_HEAT
+  CLOUDY_NORMAL
+  CLOUDY_HOT
+  RAINING_NORMAL
+  HUMIDITY
+  HEAVY_RAIN_NORMAL
   CYCLONE_WARNING
   UNKNOWN
 }
@@ -146,9 +150,11 @@ model Queue {
   actualEndTime         DateTime?
   actualDurationMinutes Float?
 
-  isDrifting        Boolean          @default(false)
-  isOutlierExcluded Boolean          @default(false)
-  weatherCondition  WeatherCondition @default(UNKNOWN)
+  isDrifting                Boolean          @default(false)
+  isOutlierExcluded         Boolean          @default(false)
+  earlyWarningSent          Boolean          @default(false)
+  lastNotifiedEstimatedTime DateTime?
+  weatherCondition          WeatherCondition @default(UNKNOWN)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -243,4 +249,19 @@ model AppointmentRequest {
   @@index([status, preferredDate])
   @@index([phone])
   @@map("appointment_requests")
+}
+
+model SystemSettings {
+  id                       String   @id @default("singleton")
+  driftThreshold           Float    @default(0.30)
+  outlierMultiplier        Float    @default(2.0)
+  earlyWarningMinutes      Int      @default(15)
+  driftCorrectionThreshold Int      @default(10)
+  earlyWarningSmsTemplate  String   @default("Hi {patientName}, your token #{tokenNumber} with {doctorName} is coming up. Estimated time: {estimatedTime}.")
+  driftSmsTemplate         String   @default("Hi {patientName}, your token #{tokenNumber} with {doctorName} has been delayed. New estimated time: {estimatedTime}.")
+  mlTimeout                Int      @default(500)
+  holidays                 Json     @default("[]")
+  updatedAt                DateTime @updatedAt
+
+  @@map("system_settings")
 }
