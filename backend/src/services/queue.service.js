@@ -5,6 +5,7 @@ import { predictDuration } from "../services/ml.service.js";
 import { resolve } from "../engine/factor/fallback.js";
 import { checkOutlier } from "../engine/factor/outlierFilter.js";
 import { emit } from "../services/websocket.service.js";
+import { getSettingValuesService } from "../services/setting.service.js";
 
 function combineDateAndTime(dateStr, timeStr) {
   return new Date(`${dateStr}T${timeStr}`);
@@ -46,7 +47,7 @@ export async function bookTokenService({
   patientGender,
 }) {
   const doctor = await prisma.doctorProfile.findUnique({
-    where: { id : doctorId },
+    where: { id: doctorId },
     select: {
       workStartTime: true,
       workEndTime: true,
@@ -60,7 +61,7 @@ export async function bookTokenService({
   if (!doctor) {
     throw new AppError("Doctor not found", 404);
   }
-   
+
   if (!doctor.user.isActive) {
     throw new AppError("Doctor is not active", 403);
   }
@@ -237,12 +238,14 @@ export async function markCompleteService(tokenId) {
     throw new AppError("Invalid status transaction");
   }
 
+  const settings = await getSettingValuesService();
   const actualEndTime = new Date();
   const actualDurationMinutes = (actualEndTime - token.actualStartTime) / 60000;
 
   const { isOutlier, deviationRatio } = checkOutlier({
     actualDurationMinutes,
     predictedDurationMinutes: token.predictedDurationMinutes,
+    outlierMultiplier: settings.outlierMultiplier,
   });
 
   await prisma.queue.update({
@@ -383,7 +386,7 @@ export async function getPatientViewService({ tokenId }) {
  * Cancel token
  */
 
-export async function cancelQueueService(tokenId) {
+export async function cancelQueueService(tokenId, phone) {
   const token = await prisma.queue.findUnique({
     where: { id: tokenId },
   });
@@ -394,6 +397,10 @@ export async function cancelQueueService(tokenId) {
 
   if (token.status === "CANCELLED" || token.status === "COMPLETED") {
     throw new AppError("Invalid status transition", 400);
+  }
+
+  if (token.patientPhone !== phone) {
+    throw new AppError("Only token owner can cancel a token", 400);
   }
 
   await prisma.queue.update({
