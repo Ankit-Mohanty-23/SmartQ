@@ -6,7 +6,7 @@
 export function checkOutlier({
   actualDurationMinutes,
   predictedDurationMinutes,
-  outlierMultiplier = 2.0,
+  outlierMultiplier,
 }) {
   const deviationRatio = actualDurationMinutes / predictedDurationMinutes;
   const isOutlier = deviationRatio > outlierMultiplier;
