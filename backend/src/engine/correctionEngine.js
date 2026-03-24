@@ -1,42 +1,70 @@
-import prisma from "../db/index.js";
+import prisma from "../config/prisma.js";
 
 const ROLLING_WINDOW = 50;
 const MIN_RECORDS = 10;
 
-async function getBaseline({ doctorId, dayOfWeek, timeSlot, visitType }) {
-  const exact = await prisma.correctionEngine.findUnique({
-    where: { lookupKey: buildKey(doctorId, dayOfWeek, timeSlot, visitType) },
+function buildKey(doctorProfileId, dayOfWeek, timeSlot, visitType) {
+  return `${doctorProfileId}:${dayOfWeek}:${timeSlot}:${visitType}`;
+}
+
+/* we use aggregateRow function to get sum of all rows from DB, 
+reduce(SUM, CURRENT_VALUE, 0) = function used to get sum of records */
+
+function aggregateRows(rows) {
+  if (!rows || rows.length === 0) return null;
+  const totalRecords = rows.reduce((sum, r) => sum + r.recordCount, 0);
+  if (totalRecords === 0) return null;
+  const avgCorrectionFactor =
+    rows.reduce((sum, r) => sum + r.correctionFactor * r.recordCount, 0) /
+    totalRecords;
+  const avgCorrectedBaseline =
+    rows.reduce((sum, r) => sum + r.correctedBaseline * r.recordCount, 0) /
+    totalRecords;
+  return {
+    correctionFactor: avgCorrectionFactor,
+    correctedBaseline: avgCorrectedBaseline,
+    recordCount: totalRecords,
+  };
+}
+
+function format(row, fallbackLevel) {
+  return {
+    correctedBaseline: row.correctedBaseline,
+    correctionFactor: row.correctionFactor,
+    recordCount: row.recordCount,
+    fallbackLevel,
+  };
+}
+
+export async function getBaseline({
+  doctorProfileId,
+  dayOfWeek,
+  timeSlot,
+  visitType,
+}) {
+  const exact = await prisma.correctionFactor.findUnique({
+    where: {
+      lookupKey: buildKey(doctorProfileId, dayOfWeek, timeSlot, visitType),
+    },
   });
   if (exact?.recordCount >= MIN_RECORDS) return format(exact, "exact");
 
-  const noVisitType = await prisma.$queryRaw`
-    SELECT AVG(correction_factor) AS correction_factor,
-           AVG(corrected_baseline) AS corrected_baseline,
-           SUM(record_count) AS record_count
-    FROM correction_engine
-    WHERE doctor_id = ${doctorId} AND day_of_week = ${dayOfWeek} AND time_slot = ${timeSlot}
-  `;
-  const nvt = parseAgg(noVisitType[0]);
+  const noVisitTypeRows = await prisma.correctionFactor.findMany({
+    where: { doctorProfileId, dayOfWeek, timeSlot },
+  });
+  const nvt = aggregateRows(noVisitTypeRows);
   if (nvt?.recordCount >= MIN_RECORDS) return format(nvt, "no_visit_type");
 
-  const noTimeSlot = await prisma.$queryRaw`
-    SELECT AVG(correction_factor) AS correction_factor,
-           AVG(corrected_baseline) AS corrected_baseline,
-           SUM(record_count) AS record_count
-    FROM correction_engine
-    WHERE doctor_id = ${doctorId} AND day_of_week = ${dayOfWeek}
-  `;
-  const nts = parseAgg(noTimeSlot[0]);
+  const noTimeSlotRows = await prisma.correctionFactor.findMany({
+    where: { doctorProfileId, dayOfWeek },
+  });
+  const nts = aggregateRows(noTimeSlotRows);
   if (nts?.recordCount >= MIN_RECORDS) return format(nts, "no_time_slot");
 
-  const global = await prisma.$queryRaw`
-    SELECT AVG(correction_factor) AS correction_factor,
-           AVG(corrected_baseline) AS corrected_baseline,
-           SUM(record_count) AS record_count
-    FROM correction_engine
-    WHERE doctor_id = ${doctorId}
-  `;
-  const g = parseAgg(global[0]);
+  const globalRows = await prisma.correctionFactor.findMany({
+    where: { doctorProfileId },
+  });
+  const g = aggregateRows(globalRows);
   if (g?.recordCount >= MIN_RECORDS) return format(g, "global");
 
   return {
@@ -47,8 +75,8 @@ async function getBaseline({ doctorId, dayOfWeek, timeSlot, visitType }) {
   };
 }
 
-async function updateAfterConsultation({
-  doctorId,
+export async function updateAfterConsultation({
+  doctorProfileId,
   dayOfWeek,
   timeSlot,
   visitType,
@@ -56,10 +84,10 @@ async function updateAfterConsultation({
   doctorAvgMinutes,
 }) {
   const overrunFactor = actualDurationMinutes / doctorAvgMinutes;
-  const lookupKey = buildKey(doctorId, dayOfWeek, timeSlot, visitType);
+  const lookupKey = buildKey(doctorProfileId, dayOfWeek, timeSlot, visitType);
 
-  const existing = await prisma.correctionEngine.findUnique({
-    where: { lookupKey },
+  const existing = await prisma.correctionFactor.findUnique({
+    where: { id: lookupKey },
   });
 
   let newCorrectionFactor;
@@ -77,24 +105,22 @@ async function updateAfterConsultation({
 
   const correctedBaseline = doctorAvgMinutes * newCorrectionFactor;
 
-  await prisma.correctionEngine.upsert({
-    where: { lookupKey },
+  await prisma.correctionFactor.upsert({
+    where: { id: lookupKey },
     update: {
       correctionFactor: newCorrectionFactor,
       recordCount: newRecordCount,
       correctedBaseline,
-      lastUpdated: new Date(),
     },
     create: {
-      lookupKey,
-      doctorId,
+      id: lookupKey,
+      doctorProfileId,
       dayOfWeek,
       timeSlot,
       visitType,
       correctionFactor: newCorrectionFactor,
       recordCount: newRecordCount,
       correctedBaseline,
-      lastUpdated: new Date(),
     },
   });
 
@@ -104,29 +130,3 @@ async function updateAfterConsultation({
     recordCount: newRecordCount,
   };
 }
-
-function buildKey(doctorId, dayOfWeek, timeSlot, visitType) {
-  return `${doctorId}:${dayOfWeek}:${timeSlot}:${visitType}`;
-}
-
-function parseAgg(row) {
-  if (!row || row.record_count == null) return null;
-  return {
-    correctionFactor: parseFloat(row.correction_factor),
-    correctedBaseline: parseFloat(row.corrected_baseline),
-    recordCount: parseInt(row.record_count, 10),
-  };
-}
-
-function format(row, fallbackLevel) {
-  return {
-    correctedBaseline: parseFloat(
-      row.correctedBaseline ?? row.corrected_baseline,
-    ),
-    correctionFactor: parseFloat(row.correctionFactor ?? row.correction_factor),
-    recordCount: parseInt(row.recordCount ?? row.record_count, 10),
-    fallbackLevel,
-  };
-}
-
-export { getBaseline, updateAfterConsultation };
