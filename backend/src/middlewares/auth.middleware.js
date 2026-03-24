@@ -10,76 +10,51 @@ export const findUserByIdService = async (id) => {
       id: true,
       name: true,
       email: true,
-      role: true
-    }
+      role: true,
+    },
   });
 };
 
-export default async function auth(req, res, next) {
+export async function auth(req, res, next) {
   try {
     let token;
-
-    // 1. Get token
     const authHeader = req.headers.authorization;
 
     if (authHeader && authHeader.startsWith("Bearer ")) {
       token = authHeader.split(" ")[1];
     }
-
     if (!token && req.cookies?.auth_token) {
       token = req.cookies.auth_token;
     }
-
     if (!token) {
-      throw new AppError(
-        "Authentication required. Please login.",
-        401
-      );
+      throw new AppError("Authentication required. Please login.", 401);
     }
 
-    // 2. Verify token
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET
-    );
-
-    // 3. Check user exists
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const currentUser = await findUserByIdService(decoded.id);
 
     if (!currentUser) {
-      throw new AppError(
-        "User belonging to this token no longer exists",
-        401
-      );
+      throw new AppError("User belonging to this token no longer exists", 401);
     }
 
-    // 4. Attach user
     req.user = currentUser;
-
     next();
-
   } catch (error) {
-
     logger.error("Auth middleware error:", error);
 
     if (error.name === "TokenExpiredError") {
-      return next(
-        new AppError(
-          "Session expired. Please login again.",
-          401
-        )
-      );
+      return next(new AppError("Session expired. Please login again.", 401));
     }
-
     if (error.name === "JsonWebTokenError") {
-      return next(
-        new AppError(
-          "Invalid token. Please login again.",
-          401
-        )
-      );
+      return next(new AppError("Invalid token. Please login again.", 401));
     }
-
     next(error);
   }
 }
+
+export const restrictTo = (...roles) => (req, res, next) => {
+  if (!roles.includes(req.user.role)) {
+    return next(new AppError("You do not have permission to perform this action", 403));
+  }
+  next();
+};
