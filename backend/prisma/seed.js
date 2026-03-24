@@ -1,14 +1,17 @@
 import bcrypt from "bcrypt";
-import prisma from "../config/prisma.js";
+import prisma from "../src/config/prisma.js";
 import logger from "../src/utils/logger.js";
 
+/**
+ * Default Admin Sedding
+ */
 async function seedAdmin() {
   const existing = await prisma.user.findUnique({
     where: { email: process.env.ADMIN_EMAIL },
   });
 
   if (existing) {
-    logger.log("Admin already exists, skipping seed.");
+    logger.info("Admin already exists, skipping seed.");
     return;
   }
 
@@ -23,10 +26,40 @@ async function seedAdmin() {
     },
   });
 
-  logger.log(`Admin created: ${admin.email}`);
+  logger.info(`Admin created: ${admin.email}`);
 }
 
-seedAdmin()
+async function main() {
+  await seedAdmin();
+  await seedSystemSetting();
+}
+
+/**
+ * System Setting Seeding
+ */
+
+async function seedSystemSetting() {
+  const existing = await prisma.systemSettings.findUnique({
+    where: { id: "singleton" },
+  });
+
+  if (existing) {
+    logger.info("System setting already exists, skipping seed.");
+    return;
+  }
+
+  await prisma.systemSettings.create({
+    data: { id: "singleton" },
+  });
+
+  logger.info("System settings seeded successfully.");
+}
+
+/**
+ * Seeding function 
+ */
+
+main()
   .catch((err) => {
     logger.error("Seed failed:", err);
     process.exit(1);
