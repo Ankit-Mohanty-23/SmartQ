@@ -122,8 +122,9 @@ export const getPatientView = asyncHandler(async (req, res) => {
 
 export const cancelQueue = asyncHandler(async (req, res) => {
   const { id } = req.params;
+  const phone = req.body;
 
-  const cancelled = await queueService.cancelQueueService(id);
+  const cancelled = await queueService.cancelQueueService(id, phone);
 
   res.status(200).json({
     status: "success",
