@@ -107,6 +107,7 @@ model DoctorProfile {
   workStartTime              String
   workEndTime                String
   averageConsultationMinutes Int    @default(15)
+  experienceYears            Int    @default(0)
 
   isActive Boolean @default(true)
 
@@ -137,6 +138,20 @@ model Queue {
   ageGroup      AgeGroup
   patientGender Gender
   visitType     VisitType
+
+  department                  String   @default("General")
+  doctorSpecialization        String   @default("General Physician")
+  isExistingPatient           Boolean  @default(false)
+  arrivedWithRecords          Boolean  @default(false)
+  chronicConditionFlag        Boolean  @default(false)
+  reasonForVisit              String   @default("General Checkup")
+  numPriorVisits              Int      @default(0)
+  numComorbidities            Int      @default(0)
+  doctorExperienceYears       Int      @default(0)
+  doctorHistoricalAvgDuration Float    @default(15.0)
+  patientsBefore              Int      @default(0)
+  facilityOccupancyRate       Float    @default(0.5)
+  isOnlineBooking             Boolean  @default(true)
 
   timeSlot                 TimeSlot
   predictedDurationMinutes Float
@@ -202,12 +217,9 @@ model DailyLoadHistory {
   dayOfWeek   DayOfWeek
   dateOfMonth Int
   month       Int
-  weekOfMonth Int
 
   isPostHoliday    Boolean          @default(false)
-  isExamSeason     Boolean          @default(false)
   weatherCondition WeatherCondition @default(UNKNOWN)
-  isPostRainDay    Boolean          @default(false)
 
   totalPatientsActual Int?
   predictedPatients   Int?
