@@ -1,0 +1,56 @@
+{
+  "model_version": "model1_v4_synthea",
+  "target": "ConsultationDurationTime",
+  "algorithm": "RandomForestRegressor",
+  "n_estimators": 200,
+  "dataset": "smartq_dataset_v4.csv",
+  "features": [
+    "Department",
+    "AppointmentType",
+    "Sex",
+    "IsExistingPatient",
+    "ArrivedWithRecords",
+    "ChronicConditionFlag",
+    "ReasonForVisit",
+    "ProviderID",
+    "DoctorSpecialization",
+    "DayOfWeek",
+    "Month",
+    "Age",
+    "NumPriorVisits",
+    "NumComorbidities",
+    "DoctorExperienceYears",
+    "DoctorHistoricalAvgDuration",
+    "PatientsBefore",
+    "FacilityOccupancyRate",
+    "HourOfDay",
+    "IsOnlineBooking"
+  ],
+  "categorical_features": [
+    "Department",
+    "AppointmentType",
+    "Sex",
+    "IsExistingPatient",
+    "ArrivedWithRecords",
+    "ChronicConditionFlag",
+    "ReasonForVisit",
+    "ProviderID",
+    "DoctorSpecialization",
+    "DayOfWeek",
+    "Month"
+  ],
+  "numeric_features": [
+    "Age",
+    "NumPriorVisits",
+    "NumComorbidities",
+    "DoctorExperienceYears",
+    "DoctorHistoricalAvgDuration",
+    "PatientsBefore",
+    "FacilityOccupancyRate",
+    "HourOfDay",
+    "IsOnlineBooking"
+  ],
+  "removed_features": {
+    "AgeGroup": "Replaced by numeric Age column to avoid duplication"
+  }
+}
