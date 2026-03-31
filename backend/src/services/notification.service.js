@@ -1,6 +1,7 @@
 import axios from "axios";
 import prisma from "../config/prisma.js";
 import logger from "../utils/logger.js";
+import { getSettingValuesService } from "./setting.service.js";
 
 export async function sendDriftSMS(tokens, doctor) {
   const promises = tokens.map(async (token) => {
@@ -58,3 +59,45 @@ function sanitizePhone(phone) {
     .slice(-10);
 }
 
+export async function checkAndNotify(doctorProfileId, appointmentDate) {
+  try {
+    const settings = await getSettingValuesService();
+    const template = settings?.driftSmsTemplate || "Hi {patientName}, your token #{tokenNumber} with {doctorName} has been delayed. New estimated time: {estimatedTime}.";
+
+    const waitingTokens = await prisma.queue.findMany({
+      where: {
+        doctorProfileId,
+        appointmentDate,
+        status: "WAITING",
+      },
+      include: {
+        doctorProfile: {
+          select: {
+            user: { select: { name: true } }
+          }
+        }
+      }
+    });
+
+    if (waitingTokens.length === 0) return;
+
+    const promises = waitingTokens.map(async (token) => {
+      if (!token.patientPhone) return;
+
+      const message = template
+        .replace(/{patientName}/g, token.patientName || "Patient")
+        .replace(/{tokenNumber}/g, token.tokenNumber)
+        .replace(/{doctorName}/g, token.doctorProfile?.user?.name || "Doctor")
+        .replace(/{estimatedTime}/g, new Date(token.estimatedStartTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+
+      return sendSMS(token.patientPhone, message).catch((err) =>
+        logger.error(`[NotificationService] SMS failed for token ${token.id}: ${err.message}`)
+      );
+    });
+
+    await Promise.allSettled(promises);
+  } catch (error) {
+    logger.error("[NotificationService] checkAndNotify failed:", error);
+    throw error;
+  }
+}
