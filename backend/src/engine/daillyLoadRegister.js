@@ -7,13 +7,6 @@ function getDayOfWeek(date) {
     .toUpperCase();
 }
 
-function getWeekOfMonth(date) {
-  const firstDay = new Date(
-    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1),
-  );
-  return Math.ceil((date.getUTCDate() + firstDay.getUTCDay()) / 7);
-}
-
 export default async function createDailyLoadStubs(date = new Date()) {
   const dateOnly = new Date(
     Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
@@ -36,11 +29,8 @@ export default async function createDailyLoadStubs(date = new Date()) {
     dayOfWeek: getDayOfWeek(dateOnly),
     dateOfMonth: dateOnly.getUTCDate(),
     month,
-    weekOfMonth: getWeekOfMonth(dateOnly),
     isPostHoliday: postHoliday,
-    isExamSeason: isExamSeason(month),
     weatherCondition: "UNKNOWN",
-    isPostRainDay: false,
     totalPatientsActual: null,
     predictedPatients: null,
   }));
