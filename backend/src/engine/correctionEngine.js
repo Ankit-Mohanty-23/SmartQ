@@ -44,7 +44,7 @@ export async function getBaseline({
 }) {
   const exact = await prisma.correctionFactor.findUnique({
     where: {
-      lookupKey: buildKey(doctorProfileId, dayOfWeek, timeSlot, visitType),
+      id: buildKey(doctorProfileId, dayOfWeek, timeSlot, visitType),
     },
   });
   if (exact?.recordCount >= MIN_RECORDS) return format(exact, "exact");
