@@ -6,6 +6,8 @@ import { resolve } from "../engine/factor/fallback.js";
 import { checkOutlier } from "../engine/factor/outlierFilter.js";
 import { emit } from "../services/websocket.service.js";
 import { getSettingValuesService } from "../services/setting.service.js";
+import { updateAfterConsultation, getBaseline } from "../engine/correctionEngine.js";
+import { getCurrentWeather } from "../services/weather.service.js";
 
 function combineDateAndTime(dateStr, timeStr) {
   return new Date(`${dateStr}T${timeStr}`);
@@ -19,14 +21,16 @@ function getTimeSlot(hour) {
 
 function getDayOfWeek(dateStr) {
   const [year, month, day] = dateStr.split("-").map(Number);
-  return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString("en-US", {
-    weekday: "long",
-    timeZone: "UTC",
-  });
+  return new Date(Date.UTC(year, month - 1, day))
+    .toLocaleDateString("en-US", {
+      weekday: "long",
+      timeZone: "UTC",
+    })
+    .toUpperCase();
 }
 
 function mapDurationSourceToFallbackType(source) {
-  if (source === "ml_model") return "ML_MODEL";
+  if (source === "ml_model") return "MODEL";
   if (source === "correction_engine") return "CORRECTION_ENGINE";
   return "DOCTOR_AVERAGE";
 }
@@ -45,10 +49,22 @@ export async function bookTokenService({
   patientAge,
   weatherCondition,
   patientGender,
+  department = "General",
+  doctorSpecialization,
+  isExistingPatient = false,
+  arrivedWithRecords = false,
+  chronicConditionFlag = false,
+  reasonForVisit = "General Checkup",
+  numPriorVisits = 0,
+  numComorbidities = 0,
+  isOnlineBooking = true,
 }) {
   const doctor = await prisma.doctorProfile.findUnique({
     where: { id: doctorId },
     select: {
+      id: true,
+      specialization: true,
+      experienceYears: true,
       workStartTime: true,
       workEndTime: true,
       averageConsultationMinutes: true,
@@ -87,7 +103,14 @@ export async function bookTokenService({
 
     const dayOfWeek = getDayOfWeek(appointmentDate);
     const timeSlot = getTimeSlot(estimatedStartTime.getHours());
-    const month = new Date(appointmentDate).getUTCMonth() + 1;
+    
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const month = monthNames[new Date(appointmentDate).getUTCMonth()];
+
+    // Auto-fetch weather if frontend didn't supply one
+    let resolvedWeather = weatherCondition && weatherCondition !== "UNKNOWN"
+      ? weatherCondition
+      : await getCurrentWeather();
 
     let correctionData = null;
     try {
@@ -107,17 +130,42 @@ export async function bookTokenService({
 
     let mlResult = null;
     try {
-      mlResult = await predictDuration({
-        doctor_id: doctorId,
-        visit_type: visitType,
-        day_of_week: dayOfWeek,
-        time_slot: timeSlot,
-        month,
-        patient_age_group: patientAgeGroup,
-        corrected_baseline: correctionData?.correctedBaseline ?? null,
-      });
-    } catch {
-      logger.warn("[queueService] predictDuration failed, using fallback");
+      const mlInput = {
+        Department: department || doctor.specialization,
+        AppointmentType: visitType,
+        Sex: patientGender ? (patientGender.charAt(0).toUpperCase() + patientGender.slice(1).toLowerCase()) : "Other",
+        IsExistingPatient: isExistingPatient ? "True" : "False",
+        ArrivedWithRecords: arrivedWithRecords ? "True" : "False",
+        ChronicConditionFlag: chronicConditionFlag ? "True" : "False",
+        ReasonForVisit: reasonForVisit,
+        ProviderID: doctorId,
+        DoctorSpecialization: doctorSpecialization || doctor.specialization,
+        DayOfWeek: dayOfWeek,
+        Month: month,
+        Age: patientAge,
+        NumPriorVisits: numPriorVisits,
+        NumComorbidities: numComorbidities,
+        DoctorExperienceYears: doctor.experienceYears || 0,
+        DoctorHistoricalAvgDuration: correctionData?.correctedBaseline ?? doctor.averageConsultationMinutes,
+        PatientsBefore: nextTokenNumber - 1,
+        FacilityOccupancyRate: 0.5, 
+        HourOfDay: estimatedStartTime.getHours(),
+        IsOnlineBooking: isOnlineBooking ? 1 : 0,
+        WeatherCondition: resolvedWeather,
+      };
+
+      const mlResponse = await predictDuration(mlInput);
+      
+      if (mlResponse && typeof mlResponse.predicted_minutes === "number") {
+        mlResult = { 
+          predicted_minutes: mlResponse.predicted_minutes,
+          confidence_score: mlResponse.confidence_score,
+        };
+      } else {
+        throw new Error("Invalid ML output: " + JSON.stringify(mlResponse));
+      }
+    } catch (err) {
+      logger.warn(`[queueService] ML prediction failed: ${err.message}, using fallback`);
     }
 
     const { resolvedDuration, durationSource, mlConfidence } = resolve({
@@ -137,22 +185,35 @@ export async function bookTokenService({
 
     const token = await tx.queue.create({
       data: {
-        doctorProfileId: doctorId,
+        doctorProfileId: doctor.id,
         tokenNumber: nextTokenNumber,
         appointmentDate: new Date(appointmentDate),
         patientName,
         patientPhone,
         patientAge,
-        patientGender,
-        ageGroup: patientAgeGroup,
-        visitType,
+        patientGender: patientGender.toUpperCase(),
+        ageGroup: patientAgeGroup.toUpperCase(),
+        visitType: visitType.toUpperCase(),
+        department: department || doctor.specialization,
+        doctorSpecialization: doctorSpecialization || doctor.specialization,
+        isExistingPatient,
+        arrivedWithRecords,
+        chronicConditionFlag,
+        reasonForVisit,
+        numPriorVisits,
+        numComorbidities,
+        doctorExperienceYears: doctor.experienceYears || 0,
+        doctorHistoricalAvgDuration: correctionData?.correctedBaseline ?? doctor.averageConsultationMinutes,
+        patientsBefore: nextTokenNumber - 1,
+        facilityOccupancyRate: 0.5,
+        isOnlineBooking,
         timeSlot,
         predictedDurationMinutes: resolvedDuration,
         mlConfidenceScore: mlConfidence ?? null,
         fallbackUsed: mapDurationSourceToFallbackType(durationSource),
         estimatedStartTime,
         estimatedEndTime,
-        weatherCondition: weatherCondition ?? "UNKNOWN",
+        weatherCondition: resolvedWeather,
       },
     });
 
@@ -234,8 +295,13 @@ export async function markCompleteService(tokenId) {
     throw new AppError("Token not found", 404);
   }
 
+  // Temporarily add this for debugging:
+  logger.info(
+    `[markComplete] token.status = ${token.status}, tokenId = ${tokenId}`,
+  );
+
   if (token.status !== "IN_PROGRESS") {
-    throw new AppError("Invalid status transaction");
+    throw new AppError("Invalid status transition", 400);
   }
 
   const settings = await getSettingValuesService();
@@ -248,30 +314,32 @@ export async function markCompleteService(tokenId) {
     outlierMultiplier: settings.outlierMultiplier,
   });
 
-  await prisma.queue.update({
-    where: { id: tokenId },
-    data: {
-      status: "COMPLETED",
-      actualEndTime,
-      actualDurationMinutes,
-      isOutlierExcluded: isOutlier,
-    },
-  });
-
-  if (!isOutlier) {
-    const dayOfWeek = getDayOfWeek(
-      token.appointmentDate.toISOString().split("T")[0],
-    );
-
-    await updateAfterConsultation({
-      doctorId: token.doctorProfileId,
-      dayOfWeek,
-      timeSlot: token.timeSlot,
-      visitType: token.visitType,
-      actualDurationMinutes,
-      doctorAvgMinutes: token.doctorProfile.averageConsultationMinutes,
+  await prisma.$transaction(async (tx) => {
+    await tx.queue.update({
+      where: { id: tokenId },
+      data: {
+        status: "COMPLETED",
+        actualEndTime,
+        actualDurationMinutes,
+        isOutlierExcluded: isOutlier,
+      },
     });
-  }
+
+    if (!isOutlier) {
+      const dayOfWeek = getDayOfWeek(
+        token.appointmentDate.toISOString().split("T")[0],
+      );
+
+      await updateAfterConsultation({
+        doctorProfileId: token.doctorProfileId,
+        dayOfWeek,
+        timeSlot: token.timeSlot,
+        visitType: token.visitType,
+        actualDurationMinutes,
+        doctorAvgMinutes: token.doctorProfile.averageConsultationMinutes,
+      });
+    }
+  });
 
   if (token.isDrifting) {
     await recalibratedAfterDrift({
