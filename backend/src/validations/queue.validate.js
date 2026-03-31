@@ -47,44 +47,28 @@ export const createQueueSchema = {
 
     weatherCondition: z
       .enum([
-        "SUNNY",
-        "CLOUDY",
-        "RAINING",
-        "HEAVY_RAIN",
+        "SUNNY_NORMAL",
+        "SUNNY_HOT",
+        "SUNNY_EXTREME_HEAT",
+        "CLOUDY_NORMAL",
+        "CLOUDY_HOT",
+        "RAINING_NORMAL",
+        "HUMIDITY",
+        "HEAVY_RAIN_NORMAL",
         "CYCLONE_WARNING",
-        "UNKNOWN",
       ])
       .optional()
       .default("UNKNOWN"),
   }),
 };
 
-/**
- * Update Queue Status Validation
- */
-
-export const updateQueueStatusSchema = {
-  body: z.object({
-    status: z.enum(["WAITING", "IN_PROGRESS", "COMPLETED", "CANCELLED"], {
-      errorMap: () => ({
-        message: "Status must be WAITING, IN_PROGRESS, COMPLETED, or CANCELLED",
-      }),
-    }),
-  }),
-};
 
 /**
  * Track Queue Validation (Public)
  */
 
 export const trackQueueSchema = {
-  query: z.object({
-    doctorId: z.string().uuid("Invalid doctorId format"),
-
-    tokenNumber: z.string().regex(/^\d+$/, "tokenNumber must be a number"),
-
-    visitDate: z.string().refine((val) => !isNaN(Date.parse(val)), {
-      message: "Invalid visitDate format. Use ISO date string.",
-    }),
+  params: z.object({
+    tokenId: z.string().uuid("Invalid tokenId format"),
   }),
 };
