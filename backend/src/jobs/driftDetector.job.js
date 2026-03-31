@@ -1,30 +1,35 @@
 import cron from "node-cron";
-import prisma from "../db/index.js";
-import { sendDriftSMS } from "../services/notificationService.js";
-import { emit } from "../services/websocketService.js";
-
-const DRIFT_THRESHOLD_MINUTES = 1;
+import prisma from "../config/prisma.js";
+import { getSettingValuesService } from "../services/setting.service.js";
+import { checkAndNotify } from "../services/notification.service.js";
+import { emit } from "../services/websocket.service.js";
+import logger from "../utils/logger.js";
 
 function registerDriftDetectorJob() {
   cron.schedule("*/5 * * * *", async () => {
     try {
       await runDriftDetection();
     } catch (err) {
-      console.error("[DriftDetector] Unhandled error:", err);
+      logger.error("[DriftDetector] Unhandled error:", err);
     }
   });
 }
 
 async function runDriftDetection() {
+  const settings = await getSettingValuesService();
+  const driftThreshold = settings?.driftThreshold ?? 0.3;
+
   const inProgressTokens = await prisma.queue.findMany({
-    where: { status: "IN_PROGRESS", isDrifting: false },
+    where: { status: "IN_PROGRESS" },
     select: {
       id: true,
-      doctorId: true,
+      doctorProfileId: true,
       appointmentDate: true,
       tokenNumber: true,
       estimatedEndTime: true,
-      doctor: { select: { name: true } },
+      predictedDurationMinutes: true,
+      isDrifting: true,
+      doctorProfile: { select: { name: true } },
     },
   });
 
@@ -33,44 +38,72 @@ async function runDriftDetection() {
   const now = new Date();
 
   for (const token of inProgressTokens) {
+    const driftAllowanceMs =
+      token.predictedDurationMinutes * driftThreshold * 60 * 1000;
     const driftDeadline = new Date(
-      token.estimatedEndTime.getTime() + DRIFT_THRESHOLD_MINUTES * 60 * 1000,
+      token.estimatedEndTime.getTime() + driftAllowanceMs,
     );
+    const isDriftingNow = now > driftDeadline;
 
-    if (now > driftDeadline) {
-      await handleDrift(token, now);
+    if (!isDriftingNow) continue;
+
+    if (!token.isDrifting) {
+      await handleNewDrift(token, now);
+    } else {
+      emitOngoingDrift(token, now);
     }
   }
 }
 
-async function handleDrift(driftingToken, now) {
+async function handleNewDrift(token, now) {
   await prisma.queue.update({
-    where: { id: driftingToken.id },
+    where: { id: token.id },
     data: { isDrifting: true },
   });
 
   const waitingTokens = await prisma.queue.findMany({
     where: {
-      doctorId: driftingToken.doctorId,
-      appointmentDate: driftingToken.appointmentDate,
+      doctorProfileId: token.doctorProfileId,
+      appointmentDate: token.appointmentDate,
       status: "WAITING",
-      tokenNumber: { gt: driftingToken.tokenNumber },
+      tokenNumber: { gt: token.tokenNumber },
     },
-    select: { id: true, tokenNumber: true },
+    select: {
+      id: true,
+      tokenNumber: true,
+      patientPhone: true,
+      patientName: true,
+    },
     orderBy: { tokenNumber: "asc" },
   });
 
+  const elapsedMs = now - token.estimatedEndTime;
+
   emit("drift_detected", {
-    doctorId: driftingToken.doctorId,
-    doctorName: driftingToken.doctor.name,
-    appointmentDate: driftingToken.appointmentDate,
+    doctorProfileId: token.doctorProfileId,
+    doctorName: token.doctorProfile.name,
+    appointmentDate: token.appointmentDate,
+    elapsedMs,
     affectedTokens: waitingTokens.map((t) => ({
       tokenId: t.id,
       tokenNumber: t.tokenNumber,
     })),
   });
 
-  sendDriftSMS(waitingTokens, driftingToken.doctor);
+  checkAndNotify(token.doctorProfileId, token.appointmentDate).catch((err) =>
+    logger.error("[DriftDetector] checkAndNotify failed:", err),
+  );
+}
+
+function emitOngoingDrift(token, now) {
+  const elapsedMs = now - token.estimatedEndTime;
+
+  emit("drift_ongoing", {
+    doctorProfileId: token.doctorProfileId,
+    appointmentDate: token.appointmentDate,
+    tokenId: token.id,
+    elapsedMs,
+  });
 }
 
 export { registerDriftDetectorJob };
