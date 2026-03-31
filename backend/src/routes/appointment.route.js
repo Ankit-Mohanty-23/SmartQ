@@ -1,47 +1,33 @@
 import { Router } from "express";
-import auth from "../middlewares/auth.middleware.js";
+import { auth, restrictTo } from "../middlewares/auth.middleware.js";
 import { validate } from "../middlewares/validate.middleware.js";
-import {
-  createAppointmentSchema,
-  listAppointmentsSchema,
-  assignAndConvertSchema,
-} from "../validations/appointment.validate.js";
 import * as appointmentController from "../controllers/appointment.controller.js";
+import * as appointmentValidation from "../validations/appointment.validate.js";
 
 const router = Router();
 
+// public
 router.post(
   "/",
-  validate(createAppointmentSchema),
+  validate(appointmentValidation.createAppointmentSchema),
   appointmentController.createAppointment,
 );
+router.patch("/:id/cancel", appointmentController.handleCancelAppointment);
+
+router.use(auth);
+router.use(restrictTo("ADMIN", "RECEPTIONIST"));
 
 router.get(
   "/",
-  auth,
-  validate(listAppointmentsSchema),
+  validate(appointmentValidation.listAppointmentsSchema),
   appointmentController.listAppointment,
 );
-
-router.get("/", auth, appointmentController.appointmentInfo);
-
+router.patch("/:id/assign", appointmentController.appointmentInfo);
 router.put(
   "/convert",
-  auth,
-  validate(assignAndConvertSchema),
+  validate(appointmentValidation.assignAndConvertSchema),
   appointmentController.handleConvertToToken,
 );
-
-router.patch(
-  "/:appointmentId/reject",
-  auth,
-  appointmentController.handleRejectAppointment,
-);
-
-router.patch(
-  "/:appointmentId/cancel",
-  auth,
-  appointmentController.handleCancelAppointment,
-);
+router.patch("/:id/reject", appointmentController.handleRejectAppointment);
 
 export default router;
