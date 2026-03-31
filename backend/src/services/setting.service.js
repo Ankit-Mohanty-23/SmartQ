@@ -40,11 +40,11 @@ export async function addHolidayService(date){
 
     const current = parseHolidays(settings);
 
-    if(current.include(date)){
+    if(current.includes(date)){
         throw new AppError("Holiday already exists", 400);
     }
 
-    const updated = [...current, data];
+    const updated = [...current, date];
     return prisma.systemSettings.upsert({
         where: { id: SINGLETON_ID },
         update: { holidays: updated },
