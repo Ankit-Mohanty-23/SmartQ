@@ -20,6 +20,15 @@ export const createQueue = asyncHandler(async (req, res) => {
     patientAge,
     patientGender,
     weatherCondition,
+    department,
+    doctorSpecialization,
+    isExistingPatient,
+    arrivedWithRecords,
+    chronicConditionFlag,
+    reasonForVisit,
+    numPriorVisits,
+    numComorbidities,
+    isOnlineBooking,
   } = req.body;
 
   const queue = await queueService.bookTokenService({
@@ -32,6 +41,15 @@ export const createQueue = asyncHandler(async (req, res) => {
     patientAge,
     patientGender,
     weatherCondition: weatherCondition ?? "UNKNOWN",
+    department,
+    doctorSpecialization,
+    isExistingPatient,
+    arrivedWithRecords,
+    chronicConditionFlag,
+    reasonForVisit,
+    numPriorVisits,
+    numComorbidities,
+    isOnlineBooking,
   });
 
   res.status(201).json({
@@ -122,7 +140,7 @@ export const getPatientView = asyncHandler(async (req, res) => {
 
 export const cancelQueue = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const phone = req.body;
+  const { phone } = req.body;
 
   const cancelled = await queueService.cancelQueueService(id, phone);
 
