@@ -104,8 +104,11 @@ export async function convertAppointmentService(
     throw new AppError("Appointment not found", 404);
   }
 
-  if (!appointment.status === "CONFIRMED") {
-    throw new AppError("Appointment already converted", 409);
+  if (appointment.status !== "PENDING") {
+    throw new AppError(
+      `Appointment cannot be converted. Current status: ${appointment.status}`,
+      409,
+    );
   }
 
   const doctor = await prisma.doctorProfile.findUnique({
@@ -133,7 +136,7 @@ export async function convertAppointmentService(
   });
 
   await prisma.appointmentRequest.update({
-    where: { id: appointment },
+    where: { id: appointment.id },
     data: {
       status: "CONFIRMED",
       assignedDoctorId: doctorProfileId,
