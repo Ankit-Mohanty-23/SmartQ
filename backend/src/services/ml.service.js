@@ -4,7 +4,9 @@
  * Falls back to null if ML service fails.
  */
 
-const ML_SERVICE_BASE_URL = process.env.ML_SERVICE_URL || 'http://localhost:8000';
+import logger from "../utils/logger.js";
+
+const ML_SERVICE_BASE_URL = process.env.ML_SERVICE_URL;
 
 export const circuitBreaker = {
   failures: 0,
@@ -29,7 +31,7 @@ export const circuitBreaker = {
     this.failures += 1;
     if (this.failures >= 3) {
       this.openUntil = Date.now() + 2 * 60 * 1000;
-      console.warn(`[mlClient] Circuit breaker OPEN until ${new Date(this.openUntil).toISOString()}`);
+      logger.warn(`[mlClient] Circuit breaker OPEN until ${new Date(this.openUntil).toISOString()}`);
     }
   },
 };
@@ -40,7 +42,7 @@ async function mlFetch(path, options = {}, attempt = 1) {
   }
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 500);
+  const timeoutId = setTimeout(() => controller.abort(), 10000); // Increased timeout for ML processing
 
   try {
     const response = await fetch(`${ML_SERVICE_BASE_URL}${path}`, {
@@ -78,11 +80,11 @@ async function mlFetch(path, options = {}, attempt = 1) {
   }
 }
 
-export async function predictDuration({ doctor_id, visit_type, day_of_week, time_slot, month, patient_age_group, corrected_baseline }) {
+export async function predictDuration(mlInput) {
   return mlFetch('/predict/duration', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ doctor_id, visit_type, day_of_week, time_slot, month, patient_age_group, corrected_baseline }),
+    body: JSON.stringify(mlInput),
   });
 }
 
