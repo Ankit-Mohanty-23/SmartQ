@@ -12,14 +12,14 @@ async function startServer(){
         connectDB();
 
         app.listen(PORT, () => {
-            logger.info(`Server running in port: ${PORT}`);
+            logger.info(`[SERVER] Startup successful | Environment: ${env.NODE_ENV} | Port: ${PORT}`);
             registerDriftDetectorJob();
             healthCheck();
-            logger.info("Drift Detector Job registered successfully");
+            logger.info("[JOB] Drift Detector Job registered successfully");
         });
         
     }catch(error){
-        logger.error(`❌ Database connection failed: ${error?.message ?? String(error)}`);
+        logger.error(`[SERVER] Startup failure | Error: ${error?.message ?? String(error)}`);
         if (error?.stack) logger.error(error.stack);
     }
 }
