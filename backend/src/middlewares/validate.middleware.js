@@ -72,7 +72,7 @@ export const validate = (schema) => (req, res, next) => {
     next();
 
   } catch (err) {
-    logger.error("Validation middleware error:", err);
+    logger.error(`[VALIDATION] Runtime failure | Action: Schemata check | Error: ${err.message}`);
 
     return res.status(500).json({
       success: false,

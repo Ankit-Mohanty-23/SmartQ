@@ -40,7 +40,9 @@ export async function auth(req, res, next) {
     req.user = currentUser;
     next();
   } catch (error) {
-    logger.error("Auth middleware error:", error);
+    logger.error(
+      `[AUTH] Middleware failure | Reason: ${error.message} | Path: ${req.path}`,
+    );
 
     if (error.name === "TokenExpiredError") {
       return next(new AppError("Session expired. Please login again.", 401));
@@ -52,9 +54,13 @@ export async function auth(req, res, next) {
   }
 }
 
-export const restrictTo = (...roles) => (req, res, next) => {
-  if (!roles.includes(req.user.role)) {
-    return next(new AppError("You do not have permission to perform this action", 403));
-  }
-  next();
-};
+export const restrictTo =
+  (...roles) =>
+  (req, res, next) => {
+    if (!roles.includes(req.user.role)) {
+      return next(
+        new AppError("You do not have permission to perform this action", 403),
+      );
+    }
+    next();
+  };

@@ -55,14 +55,15 @@ export default function globalErrorHandler(err, req, res, next) {
   }
 
   // ALWAYS log full error with stack
-  logger.error("API Error", {
-    message: error.message,
-    statusCode,
-    method: req.method,
-    url: req.originalUrl,
-    userId: req.user?.id || null,
-    stack: error.stack,
-  });
+  // Professional structured error log
+  logger.error(
+    `[API] Execution failure | Path: ${req.path} | Method: ${req.method} | Error: ${error.message}`,
+    {
+      statusCode,
+      userId: req.user?.id || null,
+      stack: error.stack,
+    },
+  );
 
   // Client Response (Clean)
   res.status(statusCode).json({
