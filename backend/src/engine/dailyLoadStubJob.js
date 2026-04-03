@@ -4,13 +4,17 @@ import logger from "../utils/logger.js";
 
 export default function startDailyLoadStubJob() {
   cron.schedule("1 0 * * *", async () => {
-    logger.info("[dailyLoadStubJob] Creating DailyLoadHistory stubs for today");
+    logger.info("[ENGINE] DailyLoadHistory cycle started | Task: Create stubs");
 
     try {
       await createDailyLoadStubs();
-      logger.info("[dailyLoadStubJob] Done");
+      logger.info(
+        "[ENGINE] DailyLoadHistory cycle completed | Task: Create stubs",
+      );
     } catch (err) {
-      logger.error("[dailyLoadStubJob] Failed:", err);
+      logger.error(
+        `[ENGINE] DailyLoadHistory cycle failure | Task: Create stubs | Error: ${err.message}`,
+      );
     }
   });
 }

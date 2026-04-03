@@ -8,9 +8,14 @@ import logger from "../utils/logger.js";
 function registerDriftDetectorJob() {
   cron.schedule("*/5 * * * *", async () => {
     try {
+      logger.info(
+        "[DRIFT] Analysis cycle initialized | Action: checkAndNotify",
+      );
       await runDriftDetection();
     } catch (err) {
-      logger.error("[DriftDetector] Unhandled error:", err);
+      logger.error(
+        `[DRIFT] Analysis cycle failure | Action: checkAndNotify | Error: ${err.message}`,
+      );
     }
   });
 }
@@ -29,7 +34,15 @@ async function runDriftDetection() {
       estimatedEndTime: true,
       predictedDurationMinutes: true,
       isDrifting: true,
-      doctorProfile: { select: { name: true } },
+      doctorProfile: { 
+        select: { 
+          user: {
+            select: {
+              name: true
+            }
+          } 
+        } 
+      },
     },
   });
 
@@ -81,7 +94,7 @@ async function handleNewDrift(token, now) {
 
   emit("drift_detected", {
     doctorProfileId: token.doctorProfileId,
-    doctorName: token.doctorProfile.name,
+    doctorName: token.doctorProfile.user.name,
     appointmentDate: token.appointmentDate,
     elapsedMs,
     affectedTokens: waitingTokens.map((t) => ({
