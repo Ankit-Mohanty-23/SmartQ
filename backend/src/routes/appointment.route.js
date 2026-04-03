@@ -12,7 +12,7 @@ router.post(
   validate(appointmentValidation.createAppointmentSchema),
   appointmentController.createAppointment,
 );
-router.patch("/:id/cancel", appointmentController.handleCancelAppointment);
+router.patch("/:appointmentId/cancel", appointmentController.handleCancelAppointment);
 
 router.use(auth);
 router.use(restrictTo("ADMIN", "RECEPTIONIST"));
@@ -22,12 +22,12 @@ router.get(
   validate(appointmentValidation.listAppointmentsSchema),
   appointmentController.listAppointment,
 );
-router.patch("/:id/assign", appointmentController.appointmentInfo);
+router.patch("/:appointmentId/info", appointmentController.appointmentInfo);
 router.put(
   "/convert",
   validate(appointmentValidation.assignAndConvertSchema),
   appointmentController.handleConvertToToken,
 );
-router.patch("/:id/reject", appointmentController.handleRejectAppointment);
+router.patch("/:appointmentId/reject", appointmentController.handleRejectAppointment);
 
 export default router;
