@@ -17,9 +17,8 @@ export async function sendDriftSMS(tokens, doctor) {
       `Your token #${token.tokenNumber} may be delayed. we will notidy you once your turn is near.`;
 
     await sendSMS(record.patientPhone, message).catch((err) =>
-      logger.log(
-        `[NotificationService] SMS failed for token ${token.id}: `,
-        err,
+      logger.error(
+        `[NOTIFICATION] Dispatch failure | TokenID: ${token.id} | Action: Send SMS | Error: ${err.message}`,
       ),
     );
   });
@@ -62,7 +61,9 @@ function sanitizePhone(phone) {
 export async function checkAndNotify(doctorProfileId, appointmentDate) {
   try {
     const settings = await getSettingValuesService();
-    const template = settings?.driftSmsTemplate || "Hi {patientName}, your token #{tokenNumber} with {doctorName} has been delayed. New estimated time: {estimatedTime}.";
+    const template =
+      settings?.driftSmsTemplate ||
+      "Hi {patientName}, your token #{tokenNumber} with {doctorName} has been delayed. New estimated time: {estimatedTime}.";
 
     const waitingTokens = await prisma.queue.findMany({
       where: {
@@ -73,13 +74,17 @@ export async function checkAndNotify(doctorProfileId, appointmentDate) {
       include: {
         doctorProfile: {
           select: {
-            user: { select: { name: true } }
-          }
-        }
-      }
+            user: { select: { name: true } },
+          },
+        },
+      },
     });
 
     if (waitingTokens.length === 0) return;
+
+    logger.info(
+      `[NOTIFICATION] Dispatching check | Date: ${new Date().toISOString()} | TokensFound: ${waitingTokens.length}`,
+    );
 
     const promises = waitingTokens.map(async (token) => {
       if (!token.patientPhone) return;
@@ -88,16 +93,28 @@ export async function checkAndNotify(doctorProfileId, appointmentDate) {
         .replace(/{patientName}/g, token.patientName || "Patient")
         .replace(/{tokenNumber}/g, token.tokenNumber)
         .replace(/{doctorName}/g, token.doctorProfile?.user?.name || "Doctor")
-        .replace(/{estimatedTime}/g, new Date(token.estimatedStartTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+        .replace(
+          /{estimatedTime}/g,
+          new Date(token.estimatedStartTime).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+        );
 
-      return sendSMS(token.patientPhone, message).catch((err) =>
-        logger.error(`[NotificationService] SMS failed for token ${token.id}: ${err.message}`)
-      );
+      try {
+        return await sendSMS(token.patientPhone, message);
+      } catch (err) {
+        logger.error(
+          `[NOTIFICATION] Dispatch failure | TokenID: ${token.id} | Action: Send SMS | Error: ${err.message}`,
+        );
+      }
     });
 
     await Promise.allSettled(promises);
   } catch (error) {
-    logger.error("[NotificationService] checkAndNotify failed:", error);
+    logger.error(
+      `[NOTIFICATION] Service failure | Method: checkAndNotify | Error: ${error.message}`,
+    );
     throw error;
   }
 }

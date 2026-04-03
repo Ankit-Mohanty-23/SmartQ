@@ -6,8 +6,22 @@ import { resolve } from "../engine/factor/fallback.js";
 import { checkOutlier } from "../engine/factor/outlierFilter.js";
 import { emit } from "../services/websocket.service.js";
 import { getSettingValuesService } from "../services/setting.service.js";
-import { updateAfterConsultation, getBaseline } from "../engine/correctionEngine.js";
+import {
+  updateAfterConsultation,
+  getBaseline,
+} from "../engine/correctionEngine.js";
 import { getCurrentWeather } from "../services/weather.service.js";
+import redis from "../config/redis.js";
+import {
+  pushToken,
+  removeToken,
+  setServing,
+  clearServing,
+  recomputeCascade,
+  getLiveQueue,
+  getTokenData,
+  hydrateFromDB,
+} from "./redisQueue.service.js";
 
 function combineDateAndTime(dateStr, timeStr) {
   return new Date(`${dateStr}T${timeStr}`);
@@ -103,14 +117,28 @@ export async function bookTokenService({
 
     const dayOfWeek = getDayOfWeek(appointmentDate);
     const timeSlot = getTimeSlot(estimatedStartTime.getHours());
-    
-    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+    const monthNames = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
     const month = monthNames[new Date(appointmentDate).getUTCMonth()];
 
     // Auto-fetch weather if frontend didn't supply one
-    let resolvedWeather = weatherCondition && weatherCondition !== "UNKNOWN"
-      ? weatherCondition
-      : await getCurrentWeather();
+    let resolvedWeather =
+      weatherCondition && weatherCondition !== "UNKNOWN"
+        ? weatherCondition
+        : await getCurrentWeather();
 
     let correctionData = null;
     try {
@@ -121,7 +149,9 @@ export async function bookTokenService({
         visitType,
       });
     } catch {
-      logger.warn("[queueService] getBaseline failed, continuing");
+      logger.warn(
+        "[QUEUE] Correction baseline lookup skipped | Reason: getBaseline failed",
+      );
     }
 
     /**
@@ -133,7 +163,10 @@ export async function bookTokenService({
       const mlInput = {
         Department: department || doctor.specialization,
         AppointmentType: visitType,
-        Sex: patientGender ? (patientGender.charAt(0).toUpperCase() + patientGender.slice(1).toLowerCase()) : "Other",
+        Sex: patientGender
+          ? patientGender.charAt(0).toUpperCase() +
+            patientGender.slice(1).toLowerCase()
+          : "Other",
         IsExistingPatient: isExistingPatient ? "True" : "False",
         ArrivedWithRecords: arrivedWithRecords ? "True" : "False",
         ChronicConditionFlag: chronicConditionFlag ? "True" : "False",
@@ -146,18 +179,20 @@ export async function bookTokenService({
         NumPriorVisits: numPriorVisits,
         NumComorbidities: numComorbidities,
         DoctorExperienceYears: doctor.experienceYears || 0,
-        DoctorHistoricalAvgDuration: correctionData?.correctedBaseline ?? doctor.averageConsultationMinutes,
+        DoctorHistoricalAvgDuration:
+          correctionData?.correctedBaseline ??
+          doctor.averageConsultationMinutes,
         PatientsBefore: nextTokenNumber - 1,
-        FacilityOccupancyRate: 0.5, 
+        FacilityOccupancyRate: 0.5,
         HourOfDay: estimatedStartTime.getHours(),
         IsOnlineBooking: isOnlineBooking ? 1 : 0,
         WeatherCondition: resolvedWeather,
       };
 
       const mlResponse = await predictDuration(mlInput);
-      
+
       if (mlResponse && typeof mlResponse.predicted_minutes === "number") {
-        mlResult = { 
+        mlResult = {
           predicted_minutes: mlResponse.predicted_minutes,
           confidence_score: mlResponse.confidence_score,
         };
@@ -165,7 +200,9 @@ export async function bookTokenService({
         throw new Error("Invalid ML output: " + JSON.stringify(mlResponse));
       }
     } catch (err) {
-      logger.warn(`[queueService] ML prediction failed: ${err.message}, using fallback`);
+      logger.warn(
+        `[ML] Prediction engine failed | Reason: ${err.message} | Action: Falling back to statistical average`,
+      );
     }
 
     const { resolvedDuration, durationSource, mlConfidence } = resolve({
@@ -203,7 +240,9 @@ export async function bookTokenService({
         numPriorVisits,
         numComorbidities,
         doctorExperienceYears: doctor.experienceYears || 0,
-        doctorHistoricalAvgDuration: correctionData?.correctedBaseline ?? doctor.averageConsultationMinutes,
+        doctorHistoricalAvgDuration:
+          correctionData?.correctedBaseline ??
+          doctor.averageConsultationMinutes,
         patientsBefore: nextTokenNumber - 1,
         facilityOccupancyRate: 0.5,
         isOnlineBooking,
@@ -227,6 +266,13 @@ export async function bookTokenService({
         },
       },
     });
+
+    // Write-through to Redis
+    pushToken(token).catch((err) =>
+      logger.warn(
+        `[REDIS] Write-through failed | Action: pushToken | Error: ${err.message}`,
+      ),
+    );
 
     return {
       tokenId: token.id,
@@ -266,13 +312,26 @@ export async function markInProgressService(tokenId) {
     );
   }
 
-  return prisma.queue.update({
+  const updatedToken = await prisma.queue.update({
     where: { id: tokenId },
     data: {
       status: "IN_PROGRESS",
-      actualStartTime: new Date(),
+      actualStartTime: now,
     },
   });
+
+  // Update Redis status
+  setServing(
+    token.doctorProfileId,
+    token.appointmentDate.toISOString().split("T")[0],
+    token.tokenNumber,
+  ).catch((err) =>
+    logger.warn(
+      `[REDIS] Status update failed | Action: setServing | Error: ${err.message}`,
+    ),
+  );
+
+  return updatedToken;
 }
 
 /**
@@ -295,9 +354,9 @@ export async function markCompleteService(tokenId) {
     throw new AppError("Token not found", 404);
   }
 
-  // Temporarily add this for debugging:
+  // Lifecycle tracing
   logger.info(
-    `[markComplete] token.status = ${token.status}, tokenId = ${tokenId}`,
+    `[QUEUE] Process: markComplete | Token: ${token.tokenNumber} | ID: ${tokenId}`,
   );
 
   if (token.status !== "IN_PROGRESS") {
@@ -339,14 +398,26 @@ export async function markCompleteService(tokenId) {
         doctorAvgMinutes: token.doctorProfile.averageConsultationMinutes,
       });
     }
-  });
 
-  if (token.isDrifting) {
-    await recalibratedAfterDrift({
-      ...token,
-      actualEndTime,
-    });
-  }
+    // Redis cleanup and cascade
+    const dateStr = token.appointmentDate.toISOString().split("T")[0];
+    removeToken(token.doctorProfileId, dateStr, tokenId).catch((err) =>
+      logger.warn(
+        `[REDIS] Cleanup failed | Action: removeToken | Error: ${err.message}`,
+      ),
+    );
+    clearServing(token.doctorProfileId, dateStr).catch((err) =>
+      logger.warn(
+        `[REDIS] Cleanup failed | Action: clearServing | Error: ${err.message}`,
+      ),
+    );
+    recomputeCascade(token.doctorProfileId, dateStr, actualEndTime).catch(
+      (err) =>
+        logger.warn(
+          `[REDIS] Cascade failed | Action: recomputeCascade | Error: ${err.message}`,
+        ),
+    );
+  });
 
   emit("token_completed", {
     doctorId: token.doctorProfileId,
@@ -369,18 +440,29 @@ export async function markCompleteService(tokenId) {
  */
 
 export async function getQueueService(doctorId, date) {
-  return prisma.queue.findMany({
-    where: {
-      doctorProfileId: doctorId,
-      appointmentDate: new Date(date),
-      status: {
-        in: ["WAITING", "IN_PROGRESS"],
+  try {
+    const liveQueue = await getLiveQueue(doctorId, date);
+    if (liveQueue) return liveQueue;
+
+    // Cold start - hydrate from DB
+    return await hydrateFromDB(doctorId, date);
+  } catch (err) {
+    logger.warn(
+      `[REDIS] Cache retrieval failed | Action: getQueueService | Reason: ${err.message} | Action: Falling back to DB`,
+    );
+    return prisma.queue.findMany({
+      where: {
+        doctorProfileId: doctorId,
+        appointmentDate: new Date(date),
+        status: {
+          in: ["WAITING", "IN_PROGRESS"],
+        },
       },
-    },
-    orderBy: {
-      tokenNumber: "asc",
-    },
-  });
+      orderBy: {
+        tokenNumber: "asc",
+      },
+    });
+  }
 }
 
 /**
@@ -388,6 +470,56 @@ export async function getQueueService(doctorId, date) {
  */
 
 export async function getPatientViewService({ tokenId }) {
+  try {
+    const redisToken = await getTokenData(tokenId);
+
+    if (redisToken) {
+      // In a real production system, you'd also fetch metadata like doctorName from a doctor cache
+      // For now, we fetch details from DB but use Redis for the live queue context
+      const token = await prisma.queue.findUnique({
+        where: { id: tokenId },
+        include: {
+          doctorProfile: {
+            select: {
+              specialization: true,
+              user: { select: { name: true } },
+            },
+          },
+        },
+      });
+
+      const dateStr = token.appointmentDate.toISOString().split("T")[0];
+      const servingNum = await redis.get(
+        `serving:${token.doctorProfileId}:${dateStr}`,
+      );
+
+      const liveQueue = await getLiveQueue(token.doctorProfileId, dateStr);
+      const myIndex = liveQueue.findIndex((t) => t.id === tokenId);
+      const patientsAhead = liveQueue.filter(
+        (t, i) => i < myIndex && t.status === "WAITING",
+      ).length;
+
+      return {
+        tokenNumber: parseInt(redisToken.tokenNumber),
+        status: redisToken.status,
+        currentlyServing: servingNum ? parseInt(servingNum) : null,
+        patientsAhead,
+        estimatedStartTime: redisToken.estimatedStartTime,
+        estimatedWaitMinutes: liveQueue
+          .slice(0, myIndex)
+          .reduce((sum, t) => sum + parseFloat(t.predictedDurationMinutes), 0),
+        isDrifting: token.isDrifting,
+        doctorName: token.doctorProfile.user.name,
+        specialization: token.doctorProfile.specialization,
+      };
+    }
+  } catch (err) {
+    logger.warn(
+      `[REDIS] Cache retrieval failed | Action: getPatientViewService | Reason: ${err.message} | Action: Falling back to DB`,
+    );
+  }
+
+  // DB Fallback Logic
   const token = await prisma.queue.findUnique({
     where: { id: tokenId },
     include: {
@@ -476,34 +608,22 @@ export async function cancelQueueService(tokenId, phone) {
     data: { status: "CANCELLED" },
   });
 
-  const waitingAfter = await prisma.queue.findMany({
-    where: {
-      doctorProfileId: token.doctorProfileId,
-      appointmentDate: token.appointmentDate,
-      status: "WAITING",
-      tokenNumber: { gt: token.tokenNumber },
-    },
-    orderBy: { tokenNumber: "asc" },
-  });
-
-  let runningTime = token.estimatedStartTime;
-
-  for (const t of waitingAfter) {
-    const newStart = new Date(runningTime);
-    const newEnd = new Date(
-      newStart.getTime() + t.predictedDurationMinutes * 60 * 1000,
-    );
-
-    await prisma.queue.update({
-      where: { id: t.id },
-      data: {
-        estimatedStartTime: newStart,
-        estimatedEndTime: newEnd,
-      },
-    });
-
-    runningTime = newEnd;
-  }
+  // Redis update and cascade re-compute
+  const dateStr = token.appointmentDate.toISOString().split("T")[0];
+  removeToken(token.doctorProfileId, dateStr, tokenId).catch((err) =>
+    logger.warn(
+      `[REDIS] Cleanup failed | Action: removeToken | Error: ${err.message}`,
+    ),
+  );
+  recomputeCascade(
+    token.doctorProfileId,
+    dateStr,
+    token.estimatedStartTime,
+  ).catch((err) =>
+    logger.warn(
+      `[REDIS] Cascade failed | Action: recomputeCascade | Error: ${err.message}`,
+    ),
+  );
 
   emit("token_cancelled", {
     doctorId: token.doctorProfileId,

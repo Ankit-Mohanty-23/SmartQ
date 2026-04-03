@@ -51,7 +51,7 @@ const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
 
 export async function getCurrentWeather() {
   if (_cache && Date.now() < _cacheExpiresAt) {
-    logger.info(`[weatherService] Cache hit → ${_cache}`);
+    logger.info(`[WEATHER] Cache lookup | Status: HIT | Result: ${_cache}`);
     return _cache;
   }
 
@@ -59,7 +59,9 @@ export async function getCurrentWeather() {
   const city = env.HOSPITAL_CITY;
 
   if (!apiKey) {
-    logger.warn("[weatherService] WEATHER_API_KEY not set, returning UNKNOWN");
+    logger.warn(
+      "[WEATHER] Configuration missing | Field: WEATHER_API_KEY | Action: Returning UNKNOWN",
+    );
     return "UNKNOWN";
   }
 
@@ -90,7 +92,7 @@ export async function getCurrentWeather() {
     const condition = mapToWeatherCondition(weatherId, tempCelsius, humidity);
 
     logger.info(
-      `[weatherService] City: ${city} | Temp: ${tempCelsius}°C | Humidity: ${humidity}% | ID: ${weatherId} → ${condition}`
+      `[WEATHER] API Request | City: ${city} | Status: Success | Result: ${condition}`,
     );
 
     _cache = condition;
@@ -99,9 +101,13 @@ export async function getCurrentWeather() {
     return condition;
   } catch (err) {
     if (err.name === "AbortError") {
-      logger.warn("[weatherService] Request timed out, returning UNKNOWN");
+      logger.warn(
+        "[WEATHER] API Timeout | Status: UNKNOWN | Action: Falling back",
+      );
     } else {
-      logger.warn(`[weatherService] Failed to fetch weather: ${err.message}`);
+      logger.warn(
+        `[WEATHER] API Request failure | Context: Fetch | Error: ${err.message}`,
+      );
     }
     return "UNKNOWN";
   }

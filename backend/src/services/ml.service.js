@@ -31,14 +31,19 @@ export const circuitBreaker = {
     this.failures += 1;
     if (this.failures >= 3) {
       this.openUntil = Date.now() + 2 * 60 * 1000;
-      logger.warn(`[mlClient] Circuit breaker OPEN until ${new Date(this.openUntil).toISOString()}`);
+      const openUntilStr = new Date(this.openUntil).toISOString();
+      logger.warn(
+        `[ML] Circuit breaker status: OPEN | Action: Blocked | Available After: ${openUntilStr}`,
+      );
     }
   },
 };
 
 async function mlFetch(path, options = {}, attempt = 1) {
   if (circuitBreaker.isOpen()) {
-    throw Object.assign(new Error('Circuit breaker open'), { code: 'CIRCUIT_OPEN' });
+    throw Object.assign(new Error("Circuit breaker open"), {
+      code: "CIRCUIT_OPEN",
+    });
   }
 
   const controller = new AbortController();
@@ -55,7 +60,7 @@ async function mlFetch(path, options = {}, attempt = 1) {
     if (!response.ok) {
       const body = await response.text();
       throw Object.assign(new Error(`ML service ${response.status}: ${body}`), {
-        code: 'ML_HTTP_ERROR',
+        code: "ML_HTTP_ERROR",
         status: response.status,
       });
     }
@@ -63,16 +68,15 @@ async function mlFetch(path, options = {}, attempt = 1) {
     const data = await response.json();
     circuitBreaker.recordSuccess();
     return data;
-
   } catch (err) {
     clearTimeout(timeoutId);
 
-    if (err.name === 'AbortError' && attempt === 1) {
+    if (err.name === "AbortError" && attempt === 1) {
       await new Promise((r) => setTimeout(r, 100));
       return mlFetch(path, options, 2);
     }
 
-    if (err.code !== 'CIRCUIT_OPEN' && err.code !== 'ML_HTTP_ERROR') {
+    if (err.code !== "CIRCUIT_OPEN" && err.code !== "ML_HTTP_ERROR") {
       circuitBreaker.recordFailure();
     }
 
@@ -81,13 +85,13 @@ async function mlFetch(path, options = {}, attempt = 1) {
 }
 
 export async function predictDuration(mlInput) {
-  return mlFetch('/predict/duration', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+  return mlFetch("/predict/duration", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(mlInput),
   });
 }
 
 export async function healthCheck() {
-  return mlFetch('/health', { method: 'GET' });
+  return mlFetch("/health", { method: "GET" });
 }
