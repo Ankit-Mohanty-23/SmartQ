@@ -3,7 +3,7 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 
 /**
  * @desc    Create Appointment
- * @route   GET /api/v1/appointments
+ * @route   POST /api/v1/appointments
  * @access  Public
  */
 
@@ -60,7 +60,7 @@ export const listAppointment = asyncHandler(async (req, res) => {
 
 /**
  * @desc    Get Appointment Detail
- * @route   GET /api/appointments/:appointmentId
+ * @route   PATCH /api/appointments/:appointmentId/info
  * @access  Private
  */
 
@@ -78,7 +78,7 @@ export const appointmentInfo = asyncHandler(async (req, res) => {
 
 /**
  * @desc    Convert appointment to token
- * @route   GET /api/v1/appointments/convert
+ * @route   PUT /api/v1/appointments/convert
  * @access  Private
  */
 
@@ -99,7 +99,7 @@ export const handleConvertToToken = asyncHandler(async (req, res) => {
 
 /**
  * @desc    Reject Appointment request
- * @route   GET /api/v1/appointments/:appointmentId/reject
+ * @route   PATCH /api/v1/appointments/:appointmentId/reject
  * @access  Private
  */
 
@@ -116,8 +116,8 @@ export const handleRejectAppointment = asyncHandler(async (req, res) => {
 });
 
 /**
- * @desc    Reject Appointment request
- * @route   GET /api/v1/appointments/:appointmentId/cancel
+ * @desc    Cancel Appointment request
+ * @route   PATCH /api/v1/appointments/:appointmentId/cancel
  * @access  Private
  */
 
