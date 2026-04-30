@@ -1,0 +1,135 @@
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+}
+
+/* page layout */
+
+.loginPage {
+  display: flex;
+  height: 100vh;
+  width: 100%;
+}
+
+/* LEFT PANEL */
+
+.leftContainer {
+  width: 35%;
+  position: relative;
+  overflow: hidden;
+}
+
+/* plus icons */
+
+.logo-container .logo {
+  width: 100px;
+  margin-bottom: 10px;
+}
+
+/* LOGIN FORM */
+
+
+
+.loginLeft {
+  width: 100%;
+  padding: 80px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.96);
+  z-index: 1;
+  transition: 0.5s ease;
+}
+/* REGISTER FORM */
+
+.registerLeft {
+  position: absolute;
+  width: 100%;
+  padding: 80px;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.96);
+  z-index: 1;
+  transform: translateX(120%);
+  transition: 0.5s ease;
+}
+
+/* animations */
+
+.showRegister {
+  transform: translateX(0);
+}
+
+.hideLogin {
+  transform: translateX(-120%);
+}
+
+/* text */
+
+.loginLeft h3 {
+  margin-bottom: 5px;
+}
+
+.loginLeft p {
+  color: #6b7280;
+  margin-bottom: 20px;
+}
+
+/* inputs */
+
+.AuthInput {
+  width: 100%;
+  padding: 12px;
+  margin: 20px 0;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  color: grey;
+}
+
+/* buttons */
+
+.loginBtn {
+  width: 100%;
+  padding: 12px;
+  margin-top: 10px;
+  background-color: #13b98a;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+/* divider */
+
+.divider {
+  text-align: center;
+  margin: 15px 0;
+  color: #9ca3af;
+}
+
+
+
+/* RIGHT PANEL */
+
+.loginRight {
+  width: 65%;
+  margin: 15px 0px;
+  border-top-left-radius: 10px;
+  border-bottom-left-radius: 10px;
+}
+
+.loginRight img {
+  width: 100%;
+  height: 100%;
+  border-top-left-radius: 10px;
+  border-bottom-left-radius: 10px;
+}
+.txt {
+  text-align: center;
+  color: #959ba5;
+}
