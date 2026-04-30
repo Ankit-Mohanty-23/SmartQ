@@ -1,0 +1,130 @@
+/* Base */
+.smartq-success-body {
+  margin: 0;
+  font-family: "Segoe UI", sans-serif;
+  background: #f4fdf7;
+}
+
+/* Page center */
+.smartq-success-page {
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+}
+
+/* Card */
+.smartq-success-card {
+  background: #ffffff;
+  padding: 35px;
+  width: 360px;
+  border-radius: 14px;
+  box-shadow: 0 8px 25px rgba(0, 128, 96, 0.15);
+  text-align: center;
+  border-top: 6px solid #00a86b;
+}
+
+/* Icons */
+.smartq-success-icon {
+  font-size: 40px;
+  margin-bottom: 10px;
+}
+
+.smartq-pending {
+  color: #ffaa00;
+}
+
+.smartq-confirmed {
+  color: #00a86b;
+}
+
+/* Headings */
+.smartq-success-card h1 {
+  margin: 10px 0;
+  color: #333;
+}
+
+.smartq-success-card p {
+  color: #666;
+  font-size: 14px;
+}
+
+/* Loader */
+.smartq-loader {
+  margin: 20px auto;
+  border: 4px solid #e0f2ea;
+  border-top: 4px solid #00a86b;
+  border-radius: 50%;
+  width: 35px;
+  height: 35px;
+  animation: smartq-spin 1s linear infinite;
+}
+
+@keyframes smartq-spin {
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* Details box */
+.smartq-details {
+  margin: 20px 0;
+  padding: 15px;
+  background: #f9fffb;
+  border: 1px solid #cceee0;
+  border-radius: 10px;
+  text-align: left;
+}
+
+.smartq-details p {
+  margin: 8px 0;
+  display: flex;
+  justify-content: space-between;
+  font-size: 14px;
+}
+
+.smartq-details span {
+  color: #00a86b;
+  font-weight: 600;
+}
+
+/* Button */
+.smartq-btn {
+  width: 100%;
+  padding: 12px;
+  background: #00a86b;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.smartq-btn:hover {
+  background: #008f5a;
+}
+.sms{
+  border: 1px solid #008f5a;
+  margin-top: 60px;
+  padding: 10px;
+  text-align: center;
+  background-color: #dbfff2;
+  border-radius: 8px;
+  width: 80%;
+}
+.sms p span{
+  margin-left: 8px;
+}
+.smartq-failed {
+  color: #dc2626;
+}
+
+.smartq-btn.retry {
+  background: #ef2828;
+}
+
+.smartq-btn.retry:hover {
+  background: #df2323;
+}
