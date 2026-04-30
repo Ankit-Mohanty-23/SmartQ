@@ -27,11 +27,15 @@ function AuthPage() {
   const handleLogin = async () => {
   try {
     const response = await loginUser(loginData);
+    console.log("Login :",response);
 
-    if (response.data.success) {
-      const user = response.data.data;
+    if (response) {
+      const user = response.user;
+      const token = response.token;
+      console.log("Login Role:",response.data.user.role);
 
       localStorage.setItem("user", JSON.stringify(user));
+      localStorage.setItem("token", token);
 
       if (user.role === "DOCTOR") {
         navigate("/doctor");
