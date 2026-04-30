@@ -1,0 +1,129 @@
+body {
+  margin: 0;
+  font-family: "Segoe UI", sans-serif;
+  background: #f4fdf7;
+}
+
+.page {
+  padding: 20px 40px;
+}
+
+.header p {
+  color: #666;
+  margin: 8px;
+}
+
+/* Form */
+.formContainer {
+  background: white;
+  padding: 25px;
+  border-radius: 12px;
+  box-shadow: 0 5px 15px rgba(0, 128, 96, 0.1);
+}
+
+/* Sections */
+.section {
+  margin-bottom: 20px;
+}
+
+.section h3 {
+  margin-bottom: 10px;
+  color: #00a86b;
+}
+
+/* Grid */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+/* Inputs */
+input,
+select,
+textarea {
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid #cceee0;
+  background: #f9fffb;
+  font-size: 14px;
+  width: 100%;
+  outline: none;
+  transition: 0.2s;
+}
+
+/* Focus effect (NEW) */
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: #00a86b;
+  box-shadow: 0 0 5px rgba(0, 168, 107, 0.3);
+}
+
+textarea {
+  height: 80px;
+  resize: none;
+}
+
+/* Button */
+.submitBtn {
+  margin-top: 10px;
+  padding: 12px;
+  width: 100%;
+  background: #00a86b;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.submitBtn:hover {
+  background: #008f5a;
+}
+
+/* Message */
+.msg {
+  margin-top: 10px;
+  text-align: center;
+}
+
+/* 🔍 Search dropdown */
+.searchDropdown {
+  position: relative;
+}
+
+/* FIX: ensure dropdown appears above everything */
+.dropdown {
+  position: absolute;
+  width: 100%;
+  background: white;
+  border: 1px solid #cceee0;
+  border-radius: 6px;
+  max-height: 150px;
+  overflow-y: auto;
+  z-index: 999; /* increased */
+  margin-top: 2px;
+}
+
+/* FIX: better click area */
+.dropdownItem {
+  padding: 10px;
+  cursor: pointer;
+  transition: 0.15s;
+}
+
+.dropdownItem:hover {
+  background: #e6fff5;
+}
+
+/* Selected feel (NEW optional) */
+.dropdownItem:active {
+  background: #c8f7e3;
+}
+
+.custom {
+  color: #00a86b;
+  font-weight: bold;
+}
