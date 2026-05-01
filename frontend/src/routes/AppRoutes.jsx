@@ -13,13 +13,13 @@ export default function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<LandingPage />} />
-      <Route path="AuthPage" element={<AuthPage />} />
-      <Route path="PatientRegister" element={<PatientRegister />} />
-      <Route path="BookingSuccess" element={<BookingSuccess />} />
+      <Route path="authpage" element={<AuthPage />} />
+      <Route path="patientregister" element={<PatientRegister />} />
+      <Route path="Bookingsuccess" element={<BookingSuccess />} />
 
       {/* PATIENT */}
       <Route
-        path="UserDashboard"
+        path="userdashboard"
         element={
           <ProtectedRoute requireToken={true}>
             <UserDashboard />
@@ -29,7 +29,7 @@ export default function AppRoutes() {
 
       {/* STAFF */}
       <Route
-        path="Receptionist"
+        path="receptionist"
         element={
           <ProtectedRoute role="RECEPTIONIST">
             <ReceptionistDashboard />
@@ -38,7 +38,7 @@ export default function AppRoutes() {
       />
 
       <Route
-        path="Doctor"
+        path="doctor"
         element={
           <ProtectedRoute role="DOCTOR">
             <DoctorDashboard />

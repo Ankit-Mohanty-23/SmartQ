@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Sidebar from "./components/sidebar";
 import QueueView from "./components/queueView";
 import "./Receptionist.css";
-import AppointmentRequests from "./components/AppointmentRequests"; 
+import AppointmentRequests from "./components/AppointmentRequests";
 import NewBooking from "./components/NewBooking";
 import Topbar from "./components/Topbar";
 
@@ -11,24 +11,45 @@ export default function Receptionist() {
   const [selectedDoctor, setSelectedDoctor] = useState(null);
   const [doctors, setDoctors] = useState([]);
 
-  // ✅ Fetch doctors
+  const loaded = useRef(false);
+
+  // Fetch doctors only once
   useEffect(() => {
+    if (loaded.current) return;
+
+    loaded.current = true;
+
     const fetchDoctors = async () => {
       try {
-        const res = await fetch("http://localhost:5000/api/v1/doctors");
-        const data = await res.json();
-        setDoctors(data.data);
+        const token = localStorage.getItem("token");
 
-        // auto select first doctor
-        if (data.data.length > 0) {
-          setSelectedDoctor(data.data[0].id);
+        const res = await fetch(
+          "http://10.190.34.182:5000/api/v1/doctors",
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        const data = await res.json();
+
+        const docs = data.data || [];
+
+        setDoctors(docs);
+
+        if (docs.length > 0) {
+          setSelectedDoctor(docs[0].id);
         }
+
       } catch (err) {
         console.error(err);
+        setDoctors([]);
       }
     };
 
     fetchDoctors();
+
   }, []);
 
   return (
@@ -42,9 +63,16 @@ export default function Receptionist() {
       />
 
       <div className="rq-main">
-        <Topbar/>
-        {view === "queue" && <QueueView selectedDoctor={selectedDoctor} />}
-        {view === "appointments" && <AppointmentRequests setView={setView} />}
+        <Topbar />
+
+        {view === "queue" && (
+          <QueueView selectedDoctor={selectedDoctor} />
+        )}
+
+        {view === "appointments" && (
+          <AppointmentRequests setView={setView} />
+        )}
+
         {view === "book" && <NewBooking />}
       </div>
     </div>

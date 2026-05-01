@@ -2,7 +2,7 @@ import API from "./api";
 
 // Queue screen (doctor-wise)
 export const getAppointmentsByDoctor = async (doctorId) => {
-  const res = await API.get("/api/v1/appointments", {
+  const res = await API.get("/appointments", {
     params: { assignedDoctorId: doctorId },
   });
 
@@ -11,7 +11,7 @@ export const getAppointmentsByDoctor = async (doctorId) => {
 
 // Appointment Requests (ALL + optional filter)
 export const getAppointments = async (status) => {
-  const res = await API.get("/api/v1/appointments", {
+  const res = await API.get("/appointments", {
     params: status && status !== "ALL" ? { status } : {},
   });
 
@@ -20,12 +20,12 @@ export const getAppointments = async (status) => {
 
 // Create appointment 
 export const createAppointment = async (data) => {
-  const res = await API.post("/api/v1/appointments", data);
+  const res = await API.post("/appointments", data);
   return res.data.data;
 };
 
 export const convertToToken = async (appointmentId, doctorProfileId) => {
-  const res = await API.post("/api/v1/appointments/convert", {
+  const res = await API.post("/appointments/convert", {
     appointmentId,
     doctorProfileId,
   });
@@ -34,7 +34,7 @@ export const convertToToken = async (appointmentId, doctorProfileId) => {
 
 export const rejectAppointment = async (appointmentId) => {
   const res = await API.get(
-    `/api/v1/appointments/${appointmentId}/reject`
+    `/appointments/${appointmentId}/reject`
   );
   return res.data.data;
 };

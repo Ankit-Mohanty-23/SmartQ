@@ -1,5 +1,5 @@
 import logo from "@/assets/logo.png";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   getAppointmentsByDoctor,
   getAppointments,
@@ -16,6 +16,8 @@ export default function Sidebar({
   const [dateTime, setDateTime] = useState("");
   const [doctorStats, setDoctorStats] = useState({});
   const [pendingCount, setPendingCount] = useState(0);
+
+  const pendingCalled = useRef(false);
 
   // Date time
   useEffect(() => {
@@ -38,23 +40,27 @@ export default function Sidebar({
     };
 
     update();
+
     const interval = setInterval(update, 1000);
+
     return () => clearInterval(interval);
   }, []);
 
-  // Fetch queue stats for each doctor
+  // Doctor stats
   useEffect(() => {
     const loadStats = async () => {
       try {
         const stats = {};
 
-        for (let doc of doctors) {
+        for (let doc of doctors || []) {
           const appts = await getAppointmentsByDoctor(doc.id);
 
-          const waiting = appts.filter((p) => p.status === "PENDING").length;
+          const waiting = (appts || []).filter(
+            (p) => p.status === "PENDING"
+          ).length;
 
-          const inProgress = appts.filter(
-            (p) => p.status === "IN_PROGRESS",
+          const inProgress = (appts || []).filter(
+            (p) => p.status === "IN_PROGRESS"
           ).length;
 
           stats[doc.id] = { waiting, inProgress };
@@ -66,50 +72,54 @@ export default function Sidebar({
       }
     };
 
-    if (doctors.length) loadStats();
+    if ((doctors || []).length > 0) {
+      loadStats();
+    }
   }, [doctors]);
 
-  // Fetch pending appointment count (for badge)
+  // Pending count call only once
   useEffect(() => {
+    if (pendingCalled.current) return;
+
+    pendingCalled.current = true;
+
     const loadPending = async () => {
       try {
         const appts = await getAppointments("PENDING");
-        setPendingCount(appts.length);
+        setPendingCount((appts || []).length);
       } catch (err) {
         console.error(err);
+        setPendingCount(0);
       }
     };
 
     loadPending();
-
-    // auto refresh every 5 sec
-    const interval = setInterval(loadPending, 5000);
-    return () => clearInterval(interval);
   }, []);
 
   return (
     <div className="rq-sidebar">
-      {/* Logo */}
-      <Link to={"/"}>
+      <Link to="/">
         <img src={logo} className="title" />
       </Link>
+
       <p className="rq-date">{dateTime}</p>
 
-      {/* Navigation */}
       <p className="rq-nav-title">Navigation</p>
 
       <div
         className={`rq-nav-item ${view === "queue" ? "active" : ""}`}
         onClick={() => setView("queue")}
       >
-        <i className="fa-solid fa-bars-staggered"></i> Queue monitor
+        <i className="fa-solid fa-bars-staggered"></i>
+        Queue monitor
       </div>
 
       <div
         className={`rq-nav-item ${view === "appointments" ? "active" : ""}`}
         onClick={() => setView("appointments")}
       >
-        <i className="fa-regular fa-envelope"></i> Appointment requests
+        <i className="fa-regular fa-envelope"></i>
+        Appointment requests
         <span className="rq-badge">{pendingCount}</span>
       </div>
 
@@ -117,13 +127,13 @@ export default function Sidebar({
         className={`rq-nav-item ${view === "book" ? "active" : ""}`}
         onClick={() => setView("book")}
       >
-        <i className="fa-solid fa-circle-plus"></i> New booking
+        <i className="fa-solid fa-circle-plus"></i>
+        New booking
       </div>
 
-      {/* Doctors */}
       <p className="rq-nav-title">Doctors today</p>
 
-      {doctors.map((doc) => {
+      {(doctors || []).map((doc) => {
         const stats = doctorStats[doc.id] || {
           waiting: 0,
           inProgress: 0,
@@ -144,21 +154,22 @@ export default function Sidebar({
                   stats.inProgress > 0
                     ? "orange"
                     : stats.waiting > 0
-                      ? "green"
-                      : "gray"
+                    ? "green"
+                    : "gray"
                 }`}
               ></span>
 
               {stats.inProgress > 0 && `${stats.inProgress} in progress`}
               {stats.inProgress > 0 && stats.waiting > 0 && " · "}
               {stats.waiting > 0 && `${stats.waiting} waiting`}
-              {stats.inProgress === 0 && stats.waiting === 0 && "Available"}
+              {stats.inProgress === 0 &&
+                stats.waiting === 0 &&
+                "Available"}
             </div>
           </div>
         );
       })}
 
-      {/* Footer */}
       <div className="rq-footer">
         <span className="dot green"></span>
         OPD open

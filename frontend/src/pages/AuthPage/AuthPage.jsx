@@ -23,57 +23,54 @@ function AuthPage() {
     role: "",
   });
 
-  // ✅ LOGIN
+  // LOGIN
   const handleLogin = async () => {
-  try {
-    const response = await loginUser(loginData);
-    console.log("Login :",response);
+    try {
+      const data = await loginUser(loginData);
 
-    if (response) {
-      const user = response.user;
-      const token = response.token;
-      console.log("Login Role:",response.data.user.role);
+      console.log("Login Response:", data);
 
-      localStorage.setItem("user", JSON.stringify(user));
-      localStorage.setItem("token", token);
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
 
-      if (user.role === "DOCTOR") {
+      if (data.user.role === "DOCTOR") {
         navigate("/doctor");
-      } else if (user.role === "RECEPTIONIST") {
+      } else if (data.user.role === "RECEPTIONIST") {
         navigate("/receptionist");
+      } else if (data.user.role === "ADMIN") {
+        navigate("/admin");
       } else {
         navigate("/");
       }
-    
-    }
 
-  } catch (error) {
-    console.log(error);
-  }
-};
-
-  // ✅ REGISTER
-  const handleRegister = async () => {
-    try {
-      const response = await registerUser(registerData);
-
-      if (response.data.success) {
-        alert("Registration successful");
-        setIsRegister(false);
-      }
-
-      console.log(response.data);
     } catch (error) {
       console.log(error);
+      alert("Invalid Login");
+    }
+  };
+
+  // REGISTER
+  const handleRegister = async () => {
+    try {
+      const data = await registerUser(registerData);
+
+      console.log("Register Response:", data);
+
+      alert("Registration Successful");
+      setIsRegister(false);
+
+    } catch (error) {
+      console.log(error);
+      alert("Registration Failed");
     }
   };
 
   return (
     <div className="loginPage">
-      {/* LEFT PANEL */}
+
       <div className="leftContainer">
 
-        {/* LOGIN FORM */}
+        {/* LOGIN */}
         <div className={`loginLeft ${isRegister ? "hideLogin" : ""}`}>
           <div className="logo-container">
             <img src={logo} className="logo" alt="logo" />
@@ -107,9 +104,9 @@ function AuthPage() {
             }
           >
             <option value="">Select your Role</option>
-            <option value="Receptionist">Receptionist</option>
-            <option value="Doctor">Doctor</option>
-            <option value="Admin">Admin</option>
+            <option value="RECEPTIONIST">Receptionist</option>
+            <option value="DOCTOR">Doctor</option>
+            <option value="ADMIN">Admin</option>
           </select>
 
           <button className="loginBtn" onClick={handleLogin}>
@@ -120,12 +117,15 @@ function AuthPage() {
 
           <p className="txt">Don't have an account ?</p>
 
-          <button className="loginBtn" onClick={() => setIsRegister(true)}>
+          <button
+            className="loginBtn"
+            onClick={() => setIsRegister(true)}
+          >
             Create account
           </button>
         </div>
 
-        {/* REGISTER FORM */}
+        {/* REGISTER */}
         <div className={`registerLeft ${isRegister ? "showRegister" : ""}`}>
           <div className="logo-container">
             <img src={logo} className="logo" alt="logo" />
@@ -138,7 +138,10 @@ function AuthPage() {
             className="AuthInput"
             placeholder="Full name"
             onChange={(e) =>
-              setRegisterData({ ...registerData, name: e.target.value })
+              setRegisterData({
+                ...registerData,
+                name: e.target.value,
+              })
             }
           />
 
@@ -147,7 +150,10 @@ function AuthPage() {
             type="email"
             placeholder="Email"
             onChange={(e) =>
-              setRegisterData({ ...registerData, email: e.target.value })
+              setRegisterData({
+                ...registerData,
+                email: e.target.value,
+              })
             }
           />
 
@@ -156,20 +162,26 @@ function AuthPage() {
             type="password"
             placeholder="Password"
             onChange={(e) =>
-              setRegisterData({ ...registerData, password: e.target.value })
+              setRegisterData({
+                ...registerData,
+                password: e.target.value,
+              })
             }
           />
 
           <select
             className="AuthInput"
             onChange={(e) =>
-              setRegisterData({ ...registerData, role: e.target.value })
+              setRegisterData({
+                ...registerData,
+                role: e.target.value,
+              })
             }
           >
             <option value="">Select your Role</option>
-            <option value="Receptionist">Receptionist</option>
-            <option value="Doctor">Doctor</option>
-            <option value="Admin">Admin</option>
+            <option value="RECEPTIONIST">Receptionist</option>
+            <option value="DOCTOR">Doctor</option>
+            <option value="ADMIN">Admin</option>
           </select>
 
           <button className="loginBtn" onClick={handleRegister}>
@@ -180,7 +192,10 @@ function AuthPage() {
 
           <p className="txt">Already have an account ?</p>
 
-          <button className="loginBtn" onClick={() => setIsRegister(false)}>
+          <button
+            className="loginBtn"
+            onClick={() => setIsRegister(false)}
+          >
             Login
           </button>
         </div>
@@ -190,6 +205,7 @@ function AuthPage() {
       <div className="loginRight">
         <img src={coverImage} alt="dashboard" />
       </div>
+
     </div>
   );
 }
