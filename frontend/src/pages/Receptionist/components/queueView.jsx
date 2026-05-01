@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { getAppointmentsByDoctor } from "@/services/appointmentService";
 import { getDoctorById } from "@/services/doctorService";
 
@@ -6,10 +6,10 @@ export default function QueueView({ selectedDoctor }) {
   const [patients, setPatients] = useState([]);
   const [doctor, setDoctor] = useState(null);
 
-  // 🔥 Load data
+  const called = useRef(false);
+
   const loadData = async () => {
     if (!selectedDoctor) return;
-    console.log("Fetching data...", new Date().toLocaleTimeString());
 
     try {
       const [doc, appts] = await Promise.all([
@@ -21,32 +21,34 @@ export default function QueueView({ selectedDoctor }) {
       setPatients(appts || []);
     } catch (err) {
       console.error(err);
+      setDoctor(null);
+      setPatients([]);
     }
   };
 
   useEffect(() => {
-    loadData();
-
-    const interval = setInterval(() => {
-      loadData();
-    }, 5000);
-
-    return () => clearInterval(interval);
+    called.current = false;
   }, [selectedDoctor]);
 
-  // ✅ Stats
+  useEffect(() => {
+    if (!selectedDoctor) return;
+    if (called.current) return;
+
+    called.current = true;
+
+    loadData();
+  }, [selectedDoctor]);
+
   const waiting = patients.filter((p) => p.status === "PENDING").length;
   const inProgress = patients.filter((p) => p.status === "IN_PROGRESS").length;
   const completed = patients.filter((p) => p.status === "COMPLETED").length;
 
   return (
     <div className="rq-right">
-      {/* Header */}
       <div className="rq-header">
         <div>
           <h2>{doctor?.name || "Queue Monitor"}</h2>
 
-          {/* 🔥 NEW: dept + opd */}
           <p style={{ fontSize: "14px", color: "#666" }}>
             {doctor?.department || "Department"} ·{" "}
             {doctor?.opdTime || "OPD Time"}
@@ -58,7 +60,6 @@ export default function QueueView({ selectedDoctor }) {
         </button>
       </div>
 
-      {/* Stats */}
       <div className="rq-stats">
         <div className="rq-stat-card">
           <p>Total Patients</p>
@@ -81,7 +82,6 @@ export default function QueueView({ selectedDoctor }) {
         </div>
       </div>
 
-      {/* Table */}
       <div className="rq-table-card">
         <table className="rq-table">
           <thead>
@@ -94,15 +94,13 @@ export default function QueueView({ selectedDoctor }) {
           </thead>
 
           <tbody>
-            {patients.map((p, i) => (
+            {(patients || []).map((p, i) => (
               <tr key={p.id}>
                 <td>{i + 1}</td>
                 <td>{p.name}</td>
                 <td>{p.preferredDate}</td>
                 <td>
-                  <span className={`rq-status ${p.status}`}>
-                    {p.status}
-                  </span>
+                  <span className={`rq-status ${p.status}`}>{p.status}</span>
                 </td>
               </tr>
             ))}
