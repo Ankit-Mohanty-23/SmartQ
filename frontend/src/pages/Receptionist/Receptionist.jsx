@@ -5,6 +5,7 @@ import "./Receptionist.css";
 import AppointmentRequests from "./components/AppointmentRequests";
 import NewBooking from "./components/NewBooking";
 import Topbar from "./components/Topbar";
+import API from "../../services/api.js"
 
 export default function Receptionist() {
   const [view, setView] = useState("queue");
@@ -23,18 +24,14 @@ export default function Receptionist() {
       try {
         const token = localStorage.getItem("token");
 
-        const res = await fetch(
-          "http://10.190.34.182:5000/api/v1/doctors",
-          {
+        const res = await API.get("/doctors",{
             headers: {
               Authorization: `Bearer ${token}`,
             },
           }
         );
 
-        const data = await res.json();
-
-        const docs = data.data || [];
+        const docs = res.data.data || [];
 
         setDoctors(docs);
 

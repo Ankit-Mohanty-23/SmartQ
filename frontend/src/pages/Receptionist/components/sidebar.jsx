@@ -56,11 +56,11 @@ export default function Sidebar({
           const appts = await getAppointmentsByDoctor(doc.id);
 
           const waiting = (appts || []).filter(
-            (p) => p.status === "PENDING"
+            (p) => p.status === "PENDING",
           ).length;
 
           const inProgress = (appts || []).filter(
-            (p) => p.status === "IN_PROGRESS"
+            (p) => p.status === "IN_PROGRESS",
           ).length;
 
           stats[doc.id] = { waiting, inProgress };
@@ -154,17 +154,15 @@ export default function Sidebar({
                   stats.inProgress > 0
                     ? "orange"
                     : stats.waiting > 0
-                    ? "green"
-                    : "gray"
+                      ? "green"
+                      : "gray"
                 }`}
               ></span>
 
               {stats.inProgress > 0 && `${stats.inProgress} in progress`}
               {stats.inProgress > 0 && stats.waiting > 0 && " · "}
               {stats.waiting > 0 && `${stats.waiting} waiting`}
-              {stats.inProgress === 0 && 
-                stats.waiting === 0 &&
-                "Available"}
+              {stats.inProgress === 0 && stats.waiting === 0 && "Available"}
             </div>
           </div>
         );
