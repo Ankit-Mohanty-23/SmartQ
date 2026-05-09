@@ -58,7 +58,7 @@ function AuthPage() {
   const handleAdminVerify = async () => {
     try {
       const response = await fetch(
-        "http://localhost:5000/api/v1/auth/admin-verify",
+        "http://localhost:5000/api/v1/users/login",
         {
           method: "POST",
           headers: {
