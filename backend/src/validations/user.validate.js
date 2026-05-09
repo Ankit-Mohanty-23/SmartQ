@@ -43,14 +43,6 @@ export const registerUserSchema = {
             message: "Doctor must have workEndTime",
           });
         }
-
-        if (!data.averageConsultationMinutes) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ["averageConsultationMinutes"],
-            message: "Doctor must have averageConsultationMinutes",
-          });
-        }
       }
     }),
 };
