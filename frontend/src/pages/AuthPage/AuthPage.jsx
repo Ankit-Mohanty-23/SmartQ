@@ -30,6 +30,7 @@ function AuthPage() {
   });
 
   // LOGIN
+
   const handleLogin = async () => {
     try {
       const data = await loginUser(loginData);
@@ -37,6 +38,7 @@ function AuthPage() {
       console.log("Login Response:", data);
 
       localStorage.setItem("token", data.token);
+
       localStorage.setItem("user", JSON.stringify(data.user));
 
       if (data.user.role === "DOCTOR") {
@@ -50,11 +52,13 @@ function AuthPage() {
       }
     } catch (error) {
       console.log(error);
+
       alert("Invalid Login");
     }
   };
 
   // ADMIN VERIFY
+
   const handleAdminVerify = async () => {
     try {
       const response = await fetch(
@@ -71,22 +75,30 @@ function AuthPage() {
 
       const data = await response.json();
 
-      if (data.success) {
+      if (data.user.role === "ADMIN") {
         setShowAdminPopup(false);
+
         setIsRegister(true);
       } else {
-        alert("Invalid Admin Credentials");
+        alert("Only Admin can verify");
 
         setShowAdminPopup(false);
+
         setIsRegister(false);
       }
     } catch (error) {
       console.log(error);
-      alert("Server Error");
+
+      alert("Invalid Admin Credentials");
+
+      setShowAdminPopup(false);
+
+      setIsRegister(false);
     }
   };
 
   // REGISTER
+
   const handleRegister = async () => {
     try {
       const data = await registerUser(registerData);
@@ -94,9 +106,11 @@ function AuthPage() {
       console.log("Register Response:", data);
 
       alert("Registration Successful");
+
       setIsRegister(false);
     } catch (error) {
       console.log(error);
+
       alert("Registration Failed");
     }
   };
@@ -105,12 +119,14 @@ function AuthPage() {
     <div className="loginPage">
       <div className="leftContainer">
         {/* LOGIN */}
+
         <div className={`loginLeft ${isRegister ? "hideLogin" : ""}`}>
           <div className="logo-container">
             <img src={logo} className="logo" alt="logo" />
           </div>
 
           <h3>Log in to your account</h3>
+
           <p>Please enter your details</p>
 
           <input
@@ -137,7 +153,6 @@ function AuthPage() {
             }
           />
 
-
           <button className="loginBtn" onClick={handleLogin}>
             Log in
           </button>
@@ -152,12 +167,14 @@ function AuthPage() {
         </div>
 
         {/* REGISTER */}
+
         <div className={`registerLeft ${isRegister ? "showRegister" : ""}`}>
           <div className="logo-container">
             <img src={logo} className="logo" alt="logo" />
           </div>
 
           <h3>Create your account</h3>
+
           <p>Please enter your details</p>
 
           <input
@@ -205,8 +222,11 @@ function AuthPage() {
             }
           >
             <option value="">Select your Role</option>
+
             <option value="RECEPTIONIST">Receptionist</option>
+
             <option value="DOCTOR">Doctor</option>
+
             <option value="ADMIN">Admin</option>
           </select>
 
@@ -274,6 +294,7 @@ function AuthPage() {
       </div>
 
       {/* RIGHT IMAGE */}
+
       <div className="loginRight">
         <img src={coverImage} alt="dashboard" />
       </div>
