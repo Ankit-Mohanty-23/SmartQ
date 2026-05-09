@@ -7,7 +7,7 @@ const BASE_URLS = {
 
 const API = axios.create({
   // change the BASE_URLS according to network usage
-  baseURL: BASE_URLS.network, 
+  baseURL: BASE_URLS.network,
   withCredentials: false,
   headers: {
     "Content-Type": "application/json",
