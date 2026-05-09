@@ -10,10 +10,16 @@ function AuthPage() {
 
   const [isRegister, setIsRegister] = useState(false);
 
+  const [showAdminPopup, setShowAdminPopup] = useState(false);
+
+  const [adminVerify, setAdminVerify] = useState({
+    email: "",
+    password: "",
+  });
+
   const [loginData, setLoginData] = useState({
     email: "",
     password: "",
-    role: "",
   });
 
   const [registerData, setRegisterData] = useState({
@@ -42,10 +48,41 @@ function AuthPage() {
       } else {
         navigate("/");
       }
-
     } catch (error) {
       console.log(error);
       alert("Invalid Login");
+    }
+  };
+
+  // ADMIN VERIFY
+  const handleAdminVerify = async () => {
+    try {
+      const response = await fetch(
+        "http://localhost:5000/api/v1/auth/admin-verify",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+
+          body: JSON.stringify(adminVerify),
+        },
+      );
+
+      const data = await response.json();
+
+      if (data.success) {
+        setShowAdminPopup(false);
+        setIsRegister(true);
+      } else {
+        alert("Invalid Admin Credentials");
+
+        setShowAdminPopup(false);
+        setIsRegister(false);
+      }
+    } catch (error) {
+      console.log(error);
+      alert("Server Error");
     }
   };
 
@@ -58,7 +95,6 @@ function AuthPage() {
 
       alert("Registration Successful");
       setIsRegister(false);
-
     } catch (error) {
       console.log(error);
       alert("Registration Failed");
@@ -67,9 +103,7 @@ function AuthPage() {
 
   return (
     <div className="loginPage">
-
       <div className="leftContainer">
-
         {/* LOGIN */}
         <div className={`loginLeft ${isRegister ? "hideLogin" : ""}`}>
           <div className="logo-container">
@@ -84,7 +118,10 @@ function AuthPage() {
             type="email"
             placeholder="Enter your email"
             onChange={(e) =>
-              setLoginData({ ...loginData, email: e.target.value })
+              setLoginData({
+                ...loginData,
+                email: e.target.value,
+              })
             }
           />
 
@@ -93,21 +130,13 @@ function AuthPage() {
             type="password"
             placeholder="Password"
             onChange={(e) =>
-              setLoginData({ ...loginData, password: e.target.value })
+              setLoginData({
+                ...loginData,
+                password: e.target.value,
+              })
             }
           />
 
-          <select
-            className="AuthInput"
-            onChange={(e) =>
-              setLoginData({ ...loginData, role: e.target.value })
-            }
-          >
-            <option value="">Select your Role</option>
-            <option value="RECEPTIONIST">Receptionist</option>
-            <option value="DOCTOR">Doctor</option>
-            <option value="ADMIN">Admin</option>
-          </select>
 
           <button className="loginBtn" onClick={handleLogin}>
             Log in
@@ -117,10 +146,7 @@ function AuthPage() {
 
           <p className="txt">Don't have an account ?</p>
 
-          <button
-            className="loginBtn"
-            onClick={() => setIsRegister(true)}
-          >
+          <button className="loginBtn" onClick={() => setShowAdminPopup(true)}>
             Create account
           </button>
         </div>
@@ -192,20 +218,65 @@ function AuthPage() {
 
           <p className="txt">Already have an account ?</p>
 
-          <button
-            className="loginBtn"
-            onClick={() => setIsRegister(false)}
-          >
+          <button className="loginBtn" onClick={() => setIsRegister(false)}>
             Login
           </button>
         </div>
+
+        {/* ADMIN POPUP */}
+
+        {showAdminPopup && (
+          <div className="popupOverlay">
+            <div className="adminPopup">
+              <h2>Admin Verification</h2>
+
+              <p>Verify admin credentials to continue</p>
+
+              <input
+                type="email"
+                placeholder="Admin Email"
+                className="AuthInput"
+                onChange={(e) =>
+                  setAdminVerify({
+                    ...adminVerify,
+                    email: e.target.value,
+                  })
+                }
+              />
+
+              <input
+                type="password"
+                placeholder="Admin Password"
+                className="AuthInput"
+                onChange={(e) =>
+                  setAdminVerify({
+                    ...adminVerify,
+                    password: e.target.value,
+                  })
+                }
+              />
+
+              <div className="popupBtns">
+                <button className="verifyBtn" onClick={handleAdminVerify}>
+                  Verify
+                </button>
+
+                <button
+                  className="cancelBtn"
+                  onClick={() => setShowAdminPopup(false)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* RIGHT IMAGE */}
       <div className="loginRight">
         <img src={coverImage} alt="dashboard" />
       </div>
-
     </div>
   );
 }

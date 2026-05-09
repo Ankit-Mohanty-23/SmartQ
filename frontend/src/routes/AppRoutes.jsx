@@ -21,7 +21,7 @@ export default function AppRoutes() {
       <Route
         path="userdashboard"
         element={
-          <ProtectedRoute requireToken={true}>
+          <ProtectedRoute requireToken={false}>
             <UserDashboard />
           </ProtectedRoute>
         }
