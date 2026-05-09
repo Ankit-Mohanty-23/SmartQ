@@ -4,6 +4,7 @@ import coverImage from "../../assets/smartQcover.png";
 import logo from "../../assets/logo.png";
 import { loginUser, registerUser } from "../../services/authService";
 import { useNavigate } from "react-router-dom";
+import API from "../../services/api";
 
 function AuthPage() {
   const navigate = useNavigate();
@@ -61,19 +62,17 @@ function AuthPage() {
 
   const handleAdminVerify = async () => {
     try {
-      const response = await fetch(
-        "http://localhost:5000/api/v1/users/login",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+      const data = await loginUser(adminVerify);
 
-          body: JSON.stringify(adminVerify),
-        },
-      );
+      // STORE ADMIN TOKEN
 
-      const data = await response.json();
+      localStorage.setItem("token", data.token);
+
+      localStorage.setItem("user", JSON.stringify(data.user));
+
+      // SET TOKEN IMMEDIATELY
+
+      API.defaults.headers.common["Authorization"] = `Bearer ${data.token}`;
 
       if (data.user.role === "ADMIN") {
         setShowAdminPopup(false);
@@ -81,6 +80,11 @@ function AuthPage() {
         setIsRegister(true);
       } else {
         alert("Only Admin can verify");
+
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+
+        delete API.defaults.headers.common["Authorization"];
 
         setShowAdminPopup(false);
 
@@ -91,12 +95,16 @@ function AuthPage() {
 
       alert("Invalid Admin Credentials");
 
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+
+      delete API.defaults.headers.common["Authorization"];
+
       setShowAdminPopup(false);
 
       setIsRegister(false);
     }
   };
-
   // REGISTER
 
   const handleRegister = async () => {
