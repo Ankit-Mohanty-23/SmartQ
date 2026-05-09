@@ -33,32 +33,15 @@ export const createQueueSchema = {
       }),
     }),
 
-    patientAgeGroup: z.enum(["CHILD", "ADULT", "SENIOR"], {
-      errorMap: () => ({
-        message: "patientAgeGroup must be CHILD, ADULT or SENIOR",
-      }),
-    }),
-
     visitType: z.enum(["NEW", "FOLLOW_UP", "EMERGENCY"], {
       errorMap: () => ({
         message: "visitType must be NEW, FOLLOW_UP or EMERGENCY",
       }),
     }),
 
-    weatherCondition: z
-      .enum([
-        "SUNNY_NORMAL",
-        "SUNNY_HOT",
-        "SUNNY_EXTREME_HEAT",
-        "CLOUDY_NORMAL",
-        "CLOUDY_HOT",
-        "RAINING_NORMAL",
-        "HUMIDITY",
-        "HEAVY_RAIN_NORMAL",
-        "CYCLONE_WARNING",
-      ])
-      .optional()
-      .default("UNKNOWN"),
+    reasonForVisit: z.string().optional().default("General Checkup"),
+
+    arrivedWithRecords: z.boolean().optional().default(false),
   }),
 };
 

@@ -49,6 +49,12 @@ function mapDurationSourceToFallbackType(source) {
   return "DOCTOR_AVERAGE";
 }
 
+function calculateAgeGroup(age) {
+  if (age < 18) return "CHILD";
+  if (age <= 60) return "ADULT";
+  return "SENIOR";
+}
+
 /**
  * Create new Queue token
  */
@@ -57,36 +63,35 @@ export async function bookTokenService({
   doctorId,
   appointmentDate,
   patientName,
-  patientAgeGroup,
-  visitType,
   patientPhone,
   patientAge,
-  weatherCondition,
   patientGender,
-  department = "General",
-  doctorSpecialization,
-  isExistingPatient = false,
-  arrivedWithRecords = false,
-  chronicConditionFlag = false,
+  visitType,
   reasonForVisit = "General Checkup",
-  numPriorVisits = 0,
-  numComorbidities = 0,
-  isOnlineBooking = true,
+  arrivedWithRecords = false,
 }) {
-  const doctor = await prisma.doctorProfile.findUnique({
+  const doctorFields = {
+    id: true,
+    specialization: true,
+    experienceYears: true,
+    workStartTime: true,
+    workEndTime: true,
+    averageConsultationMinutes: true,
+    user: { select: { isActive: true } },
+  };
+
+  let doctor = await prisma.doctorProfile.findUnique({
     where: { id: doctorId },
-    select: {
-      id: true,
-      specialization: true,
-      experienceYears: true,
-      workStartTime: true,
-      workEndTime: true,
-      averageConsultationMinutes: true,
-      user: {
-        select: { isActive: true },
-      },
-    },
+    select: doctorFields,
   });
+
+  if (!doctor) {
+    const userWithProfile = await prisma.user.findUnique({
+      where: { id: doctorId },
+      include: { doctorProfile: { select: doctorFields } },
+    });
+    doctor = userWithProfile?.doctorProfile;
+  }
 
   if (!doctor) {
     throw new AppError("Doctor not found", 404);
@@ -96,12 +101,34 @@ export async function bookTokenService({
     throw new AppError("Doctor is not active", 403);
   }
 
+  // Calculate fields before transaction
+  const resolvedDate = appointmentDate || new Date().toISOString().split("T")[0];
+  const ageGroup = calculateAgeGroup(patientAge);
+  const department = doctor.specialization;
+  const doctorSpecialization = doctor.specialization;
+
+  const isExistingPatientRecord = await prisma.queue.findFirst({
+    where: { patientPhone },
+    select: { id: true },
+  });
+  const isExistingPatient = !!isExistingPatientRecord;
+
+  const numPriorVisits = await prisma.queue.count({
+    where: { patientPhone, status: "COMPLETED" },
+  });
+
+  // Fields with sensible defaults for ML
+  const chronicConditionFlag = false;
+  const numComorbidities = 0;
+  const facilityOccupancyRate = 0.5;
+  const isOnlineBooking = true;
+
   return prisma.$transaction(async (tx) => {
     const lastToken = await tx.$queryRaw`
       SELECT "tokenNumber", "estimatedEndTime"
       FROM queues
       WHERE "doctorProfileId" = ${doctor.id}
-        AND "appointmentDate" = ${new Date(appointmentDate)}
+        AND "appointmentDate" = ${new Date(resolvedDate)}
         AND status != 'CANCELLED'
       ORDER BY "tokenNumber" DESC
       LIMIT 1
@@ -113,32 +140,18 @@ export async function bookTokenService({
 
     const estimatedStartTime = last
       ? new Date(last.estimatedEndTime)
-      : combineDateAndTime(appointmentDate, doctor.workStartTime);
+      : combineDateAndTime(resolvedDate, doctor.workStartTime);
 
-    const dayOfWeek = getDayOfWeek(appointmentDate);
+    const dayOfWeek = getDayOfWeek(resolvedDate);
     const timeSlot = getTimeSlot(estimatedStartTime.getHours());
 
     const monthNames = [
-      "Jan",
-      "Feb",
-      "Mar",
-      "Apr",
-      "May",
-      "Jun",
-      "Jul",
-      "Aug",
-      "Sep",
-      "Oct",
-      "Nov",
-      "Dec",
+      "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+      "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
     ];
-    const month = monthNames[new Date(appointmentDate).getUTCMonth()];
+    const month = monthNames[new Date(resolvedDate).getUTCMonth()];
 
-    // Auto-fetch weather if frontend didn't supply one
-    let resolvedWeather =
-      weatherCondition && weatherCondition !== "UNKNOWN"
-        ? weatherCondition
-        : await getCurrentWeather();
+    const resolvedWeather = await getCurrentWeather();
 
     let correctionData = null;
     try {
@@ -146,7 +159,7 @@ export async function bookTokenService({
         doctorId,
         dayOfWeek,
         timeSlot,
-        visitType,
+        visitType: visitType.toUpperCase(),
       });
     } catch {
       logger.warn(
@@ -157,11 +170,10 @@ export async function bookTokenService({
     /**
      * ML Section
      */
-
     let mlResult = null;
     try {
       const mlInput = {
-        Department: department || doctor.specialization,
+        Department: department,
         AppointmentType: visitType,
         Sex: patientGender
           ? patientGender.charAt(0).toUpperCase() +
@@ -172,7 +184,7 @@ export async function bookTokenService({
         ChronicConditionFlag: chronicConditionFlag ? "True" : "False",
         ReasonForVisit: reasonForVisit,
         ProviderID: doctorId,
-        DoctorSpecialization: doctorSpecialization || doctor.specialization,
+        DoctorSpecialization: doctorSpecialization,
         DayOfWeek: dayOfWeek,
         Month: month,
         Age: patientAge,
@@ -183,7 +195,7 @@ export async function bookTokenService({
           correctionData?.correctedBaseline ??
           doctor.averageConsultationMinutes,
         PatientsBefore: nextTokenNumber - 1,
-        FacilityOccupancyRate: 0.5,
+        FacilityOccupancyRate: facilityOccupancyRate,
         HourOfDay: estimatedStartTime.getHours(),
         IsOnlineBooking: isOnlineBooking ? 1 : 0,
         WeatherCondition: resolvedWeather,
@@ -214,7 +226,7 @@ export async function bookTokenService({
     const estimatedEndTime = new Date(
       estimatedStartTime.getTime() + resolvedDuration * 60 * 1000,
     );
-    const workEndTime = combineDateAndTime(appointmentDate, doctor.workEndTime);
+    const workEndTime = combineDateAndTime(resolvedDate, doctor.workEndTime);
 
     if (estimatedEndTime > workEndTime) {
       throw new AppError("Queue is full, no more patients accepted", 400);
@@ -224,15 +236,15 @@ export async function bookTokenService({
       data: {
         doctorProfileId: doctor.id,
         tokenNumber: nextTokenNumber,
-        appointmentDate: new Date(appointmentDate),
+        appointmentDate: new Date(resolvedDate),
         patientName,
         patientPhone,
         patientAge,
         patientGender: patientGender.toUpperCase(),
-        ageGroup: patientAgeGroup.toUpperCase(),
+        ageGroup,
         visitType: visitType.toUpperCase(),
-        department: department || doctor.specialization,
-        doctorSpecialization: doctorSpecialization || doctor.specialization,
+        department,
+        doctorSpecialization,
         isExistingPatient,
         arrivedWithRecords,
         chronicConditionFlag,
@@ -244,7 +256,7 @@ export async function bookTokenService({
           correctionData?.correctedBaseline ??
           doctor.averageConsultationMinutes,
         patientsBefore: nextTokenNumber - 1,
-        facilityOccupancyRate: 0.5,
+        facilityOccupancyRate,
         isOnlineBooking,
         timeSlot,
         predictedDurationMinutes: resolvedDuration,
@@ -259,7 +271,7 @@ export async function bookTokenService({
     const patientsAhead = await tx.queue.count({
       where: {
         doctorProfileId: doctor.id,
-        appointmentDate: new Date(appointmentDate),
+        appointmentDate: new Date(resolvedDate),
         status: "WAITING",
         tokenNumber: {
           lt: nextTokenNumber,
