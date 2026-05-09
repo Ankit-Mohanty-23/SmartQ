@@ -1,7 +1,13 @@
 import axios from "axios";
 
+const BASE_URLS = {
+  local: "http://localhost:5000/api/v1",
+  network: "http://10.190.34.182:5000/api/v1",
+};
+
 const API = axios.create({
-  baseURL: "http://10.190.34.182:5000/api/v1",
+  // change the BASE_URLS according to network usage
+  baseURL: BASE_URLS.local, 
   withCredentials: false,
   headers: {
     "Content-Type": "application/json",
