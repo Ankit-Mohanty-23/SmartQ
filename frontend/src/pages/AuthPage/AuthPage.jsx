@@ -61,7 +61,19 @@ function AuthPage() {
 
   const handleAdminVerify = async () => {
     try {
-      const data = await loginUser(adminVerify);
+      const response = await fetch(
+        "http://localhost:5000/api/v1/users/login",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+
+          body: JSON.stringify(adminVerify),
+        },
+      );
+
+      const data = await response.json();
 
       if (data.user.role === "ADMIN") {
         setShowAdminPopup(false);
