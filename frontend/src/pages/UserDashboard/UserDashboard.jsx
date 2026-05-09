@@ -33,7 +33,7 @@ export default function UserDashboard() {
         <h2>No Active Appointment</h2>
         <p>Please book an appointment first</p>
 
-        <Link to="/" className="home-btn">
+        <Link to="/patientregister" className="home-btn">
           Book Appointment
         </Link>
       </div>

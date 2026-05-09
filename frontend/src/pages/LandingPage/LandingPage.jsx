@@ -1,7 +1,9 @@
 import "./LandingPage.css";
 import { Link } from "react-router-dom";
-import logo from "@/assets/logo.png";
+import logo from "../../assets/logo.png";
 import AuthPage from "../AuthPage/AuthPage";
+import Lottie from "lottie-react";
+import anim from "../../assets/Waiting_Queue.json";
 
 export default function LandingPage() {
   return (
@@ -13,12 +15,9 @@ export default function LandingPage() {
         </Link>
       </nav>
 
-      <dotlottie-wc
-        src="https://lottie.host/bd732b36-eb6a-4d42-b156-0d153ab6a2ce/nIEP2OaWWd.lottie"
-        style={{ width: "350px", height: "350px" }}
-        autoplay
-        loop
-      ></dotlottie-wc>
+      <div style={{ width: "350px", height: "200px"}}>
+        <Lottie animationData={anim} loop={true} />
+      </div>
 
       <section className="hero">
         <h2>Skip the Waiting Room.</h2>
@@ -38,7 +37,7 @@ export default function LandingPage() {
             <i class="fa-regular fa-calendar"></i>
             <span>Book Appointment</span>
             <i class="fa-solid fa-angle-right"></i>
-            </button>
+          </button>
         </Link>
       </section>
 
