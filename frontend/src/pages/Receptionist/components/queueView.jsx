@@ -47,11 +47,11 @@ export default function QueueView({ selectedDoctor }) {
     <div className="rq-right">
       <div className="rq-header">
         <div>
-          <h2>{doctor?.name || "Queue Monitor"}</h2>
+          <h2>{doctor?.user?.name || "Queue Monitor"}</h2>
 
           <p style={{ fontSize: "14px", color: "#666" }}>
-            {doctor?.department || "Department"} ·{" "}
-            {doctor?.opdTime || "OPD Time"}
+            {doctor?.specialization || "Department"} ·{" "}
+            {doctor?.workStartTime|| "OPD Start Time"} - {doctor?.workEndTime|| "OPD End Time"}
           </p>
         </div>
 

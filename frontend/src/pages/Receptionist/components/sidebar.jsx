@@ -145,8 +145,8 @@ export default function Sidebar({
             className={`rq-doc ${selectedDoctor === doc.id ? "selected" : ""}`}
             onClick={() => setSelectedDoctor(doc.id)}
           >
-            <h4>{doc.name}</h4>
-            <p className="rq-dept">{doc.department}</p>
+            <h4>{doc?.user?.name || "Mr. Doctor"}</h4>
+            <p className="rq-dept">{doc?.specialization}</p>
 
             <div className="rq-status-line">
               <span
@@ -162,7 +162,7 @@ export default function Sidebar({
               {stats.inProgress > 0 && `${stats.inProgress} in progress`}
               {stats.inProgress > 0 && stats.waiting > 0 && " · "}
               {stats.waiting > 0 && `${stats.waiting} waiting`}
-              {stats.inProgress === 0 &&
+              {stats.inProgress === 0 && 
                 stats.waiting === 0 &&
                 "Available"}
             </div>

@@ -1,6 +1,7 @@
 .rq-container {
   display: flex;
   height: 100vh;
+  overflow: hidden;
 }
 
 /* Sidebar */
@@ -12,6 +13,12 @@
   flex-direction: column;
   flex-shrink: 0;
   font-family: "Inter", sans-serif;
+  height: 100vh;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.rq-sidebar::-webkit-scrollbar{
+  display: none;
 }
 
 .rq-date {
@@ -116,6 +123,7 @@
   background-color: #f1ecdf;
   padding: 60px 20px 20px 20px;
   position: relative;
+  height: 100vh;
 }
 
 .rq-right {
