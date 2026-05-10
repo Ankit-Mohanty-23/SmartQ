@@ -444,3 +444,114 @@
 .rq-logout-btn:hover {
   background: #e63946;
 }
+/* ================= MOBILE RESPONSIVE ================= */
+
+@media (max-width: 768px) {
+
+  .rq-container {
+    flex-direction: column;
+    height: auto;
+    overflow: auto;
+  }
+
+  /* Sidebar */
+
+  .rq-sidebar {
+    width: 100%;
+    height: auto;
+    padding: 15px;
+  }
+
+  /* Main */
+
+  .rq-main {
+    width: 100%;
+    height: auto;
+    padding: 70px 12px 20px 12px;
+  }
+
+  .rq-right {
+    padding: 0;
+  }
+
+  /* Header */
+
+  .rq-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .rq-refresh,
+  .rq-new-btn {
+    width: 100%;
+  }
+
+  /* Stats */
+
+  .rq-stats {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .rq-stat-card {
+    width: 100%;
+  }
+
+  /* Table */
+
+  .rq-table-card {
+    overflow-x: auto;
+  }
+
+  .rq-table {
+    min-width: 700px;
+  }
+
+  /* Appointment Cards */
+
+  .appt-top {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .appt-actions {
+    flex-direction: column;
+  }
+
+  .appt-select,
+  .confirm-btn,
+  .reject-btn {
+    width: 100%;
+  }
+
+  /* Form */
+
+  .nb-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Topbar */
+
+  .rq-topbar {
+    position: static;
+    margin-bottom: 15px;
+    width: fit-content;
+  }
+
+  .rq-profile {
+    flex-wrap: wrap;
+  }
+
+  /* Tabs */
+
+  .rq-tabs {
+    overflow-x: auto;
+    white-space: nowrap;
+    padding-bottom: 5px;
+  }
+
+  .rq-tabs button {
+    flex-shrink: 0;
+  }
+}

@@ -28,6 +28,10 @@ function AuthPage() {
     email: "",
     password: "",
     role: "",
+    specialization: "",
+    workStartTime: "",
+    workEndTime: "",
+    averageConsultationMinutes: "",
   });
 
   // LOGIN
@@ -109,9 +113,26 @@ function AuthPage() {
 
   const handleRegister = async () => {
     try {
-      const data = await registerUser(registerData);
+      const payload = {
+        name: registerData.name,
+        email: registerData.email,
+        password: registerData.password,
+        role: registerData.role,
+        specialization: registerData.specialization,
 
-      console.log("Register Response:", data);
+        workStartTime:
+          registerData.workStartTime + " " + registerData.workStartPeriod,
+
+        workEndTime:
+          registerData.workEndTime + " " + registerData.workEndPeriod,
+
+        averageConsultationMinutes:
+          Number(registerData.averageConsultationMinutes) || 15,
+      };
+
+      const data = await registerUser(payload);
+
+      console.log(data);
 
       alert("Registration Successful");
 
@@ -234,9 +255,113 @@ function AuthPage() {
             <option value="RECEPTIONIST">Receptionist</option>
 
             <option value="DOCTOR">Doctor</option>
-
-            <option value="ADMIN">Admin</option>
           </select>
+
+          {/* DOCTOR ONLY FIELDS */}
+
+          {registerData.role === "DOCTOR" && (
+            <>
+              <select
+                className="AuthInput"
+                onChange={(e) =>
+                  setRegisterData({
+                    ...registerData,
+                    specialization: e.target.value,
+                  })
+                }
+              >
+                <option value="">Select Specialization</option>
+
+                <option value="General Physician">General Physician</option>
+
+                <option value="Cardiologist">Cardiologist</option>
+
+                <option value="Dermatologist">Dermatologist</option>
+
+                <option value="Neurologist">Neurologist</option>
+
+                <option value="Orthopedic">Orthopedic</option>
+
+                <option value="Pediatrician">Pediatrician</option>
+
+                <option value="ENT Specialist">ENT Specialist</option>
+
+                <option value="Gynecologist">Gynecologist</option>
+
+                <option value="Psychiatrist">Psychiatrist</option>
+
+                <option value="Dentist">Dentist</option>
+              </select>
+
+              <label className="timeLabel">Work Start Time</label>
+
+              <div className="timeRow">
+                <input
+                  className="AuthInput"
+                  type="time"
+                  onChange={(e) =>
+                    setRegisterData({
+                      ...registerData,
+                      workStartTime: e.target.value,
+                    })
+                  }
+                />
+
+                <select
+                  className="ampmSelect"
+                  onChange={(e) =>
+                    setRegisterData({
+                      ...registerData,
+                      workStartPeriod: e.target.value,
+                    })
+                  }
+                >
+                  <option value="AM">AM</option>
+                  <option value="PM">PM</option>
+                </select>
+              </div>
+
+              <label className="timeLabel">Work End Time</label>
+
+              <div className="timeRow">
+                <input
+                  className="AuthInput"
+                  type="time"
+                  onChange={(e) =>
+                    setRegisterData({
+                      ...registerData,
+                      workEndTime: e.target.value,
+                    })
+                  }
+                />
+
+                <select
+                  className="ampmSelect"
+                  onChange={(e) =>
+                    setRegisterData({
+                      ...registerData,
+                      workEndPeriod: e.target.value,
+                    })
+                  }
+                >
+                  <option value="AM">AM</option>
+                  <option value="PM">PM</option>
+                </select>
+              </div>
+
+              <input
+                className="AuthInput"
+                type="number"
+                placeholder="Average Consultation Minutes (Optional)"
+                onChange={(e) =>
+                  setRegisterData({
+                    ...registerData,
+                    averageConsultationMinutes: e.target.value,
+                  })
+                }
+              />
+            </>
+          )}
 
           <button className="loginBtn" onClick={handleRegister}>
             Register
