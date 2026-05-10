@@ -56,8 +56,12 @@ body {
   z-index: 1;
   transform: translateX(120%);
   transition: 0.5s ease;
+  overflow-y: auto;
+  scrollbar-width: none;
 }
-
+.registerLeft::-webkit-scrollbar {
+  display: none;
+}
 /* animations */
 
 .showRegister {
@@ -249,4 +253,25 @@ body {
     opacity: 1;
     transform: scale(1);
   }
+}
+.timeLabel {
+  display: block;
+  font-size: 12px;
+  color: #666;
+  margin-bottom: -20px;
+  margin-top: 6px;
+  font-weight: 500;
+}
+.timeRow {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.ampmSelect {
+  height: 45px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  padding: 0 10px;
+  background: white;
 }

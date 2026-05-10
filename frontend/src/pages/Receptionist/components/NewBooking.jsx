@@ -97,7 +97,7 @@ export default function NewBooking() {
             <option value="">Select doctor</option>
             {doctors.map((d) => (
               <option key={d.id} value={d.id}>
-                {d.name}
+                {d.user?.name}
               </option>
             ))}
           </select>

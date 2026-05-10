@@ -1,9 +1,12 @@
 import { useEffect, useState, useRef } from "react";
-import { getAppointmentsByDoctor } from "@/services/appointmentService";
+
+import { trackQueueByDoctor } from "@/services/appointmentService";
+
 import { getDoctorById } from "@/services/doctorService";
 
 export default function QueueView({ selectedDoctor }) {
   const [patients, setPatients] = useState([]);
+
   const [doctor, setDoctor] = useState(null);
 
   const called = useRef(false);
@@ -12,16 +15,22 @@ export default function QueueView({ selectedDoctor }) {
     if (!selectedDoctor) return;
 
     try {
-      const [doc, appts] = await Promise.all([
+      const today = new Date().toISOString().split("T")[0];
+
+      const [doc, queueData] = await Promise.all([
         getDoctorById(selectedDoctor),
-        getAppointmentsByDoctor(selectedDoctor),
+
+        trackQueueByDoctor(selectedDoctor, today),
       ]);
 
       setDoctor(doc || null);
-      setPatients(appts || []);
+
+      setPatients(queueData || []);
     } catch (err) {
       console.error(err);
+
       setDoctor(null);
+
       setPatients([]);
     }
   };
@@ -32,6 +41,7 @@ export default function QueueView({ selectedDoctor }) {
 
   useEffect(() => {
     if (!selectedDoctor) return;
+
     if (called.current) return;
 
     called.current = true;
@@ -39,8 +49,10 @@ export default function QueueView({ selectedDoctor }) {
     loadData();
   }, [selectedDoctor]);
 
-  const waiting = patients.filter((p) => p.status === "PENDING").length;
+  const waiting = patients.filter((p) => p.status === "WAITING").length;
+
   const inProgress = patients.filter((p) => p.status === "IN_PROGRESS").length;
+
   const completed = patients.filter((p) => p.status === "COMPLETED").length;
 
   return (
@@ -49,9 +61,15 @@ export default function QueueView({ selectedDoctor }) {
         <div>
           <h2>{doctor?.user?.name || "Queue Monitor"}</h2>
 
-          <p style={{ fontSize: "14px", color: "#666" }}>
+          <p
+            style={{
+              fontSize: "14px",
+              color: "#666",
+            }}
+          >
             {doctor?.specialization || "Department"} ·{" "}
-            {doctor?.workStartTime|| "OPD Start Time"} - {doctor?.workEndTime|| "OPD End Time"}
+            {doctor?.workStartTime || "OPD Start Time"} -{" "}
+            {doctor?.workEndTime || "OPD End Time"}
           </p>
         </div>
 
@@ -63,21 +81,25 @@ export default function QueueView({ selectedDoctor }) {
       <div className="rq-stats">
         <div className="rq-stat-card">
           <p>Total Patients</p>
+
           <h3>{patients.length}</h3>
         </div>
 
         <div className="rq-stat-card">
           <p>Waiting</p>
+
           <h3>{waiting}</h3>
         </div>
 
         <div className="rq-stat-card">
           <p>In Progress</p>
+
           <h3>{inProgress}</h3>
         </div>
 
         <div className="rq-stat-card">
           <p>Completed</p>
+
           <h3>{completed}</h3>
         </div>
       </div>
@@ -87,8 +109,11 @@ export default function QueueView({ selectedDoctor }) {
           <thead>
             <tr>
               <th>#</th>
+
               <th>Patient</th>
+
               <th>Time</th>
+
               <th>Status</th>
             </tr>
           </thead>
@@ -97,8 +122,16 @@ export default function QueueView({ selectedDoctor }) {
             {(patients || []).map((p, i) => (
               <tr key={p.id}>
                 <td>{i + 1}</td>
-                <td>{p.name}</td>
-                <td>{p.preferredDate}</td>
+
+                <td>{p.patientName}</td>
+
+                <td>
+                  {new Date(p.estimatedStartTime).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </td>
+
                 <td>
                   <span className={`rq-status ${p.status}`}>{p.status}</span>
                 </td>
