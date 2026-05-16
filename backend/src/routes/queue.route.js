@@ -7,7 +7,7 @@ import * as queueValidatation from "../validations/queue.validate.js";
 const router = Router();
 
 router.get(
-  "/:tokenId/patient",
+  "/:number/patient",
   validate(queueValidatation.trackQueueSchema),
   queueController.getPatientView,
 );
