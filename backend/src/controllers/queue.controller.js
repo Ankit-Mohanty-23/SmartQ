@@ -104,9 +104,9 @@ export const getDoctorQueue = asyncHandler(async (req, res) => {
  */
 
 export const getPatientView = asyncHandler(async (req, res) => {
-  const { tokenId } = req.params;
+  const { number } = req.params;
 
-  const result = await queueService.getPatientViewService({ tokenId });
+  const result = await queueService.getPatientViewService({ phoneNumber: number });
 
   res.status(200).json({
     status: "success",
