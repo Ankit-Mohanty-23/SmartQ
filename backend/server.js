@@ -13,14 +13,25 @@ const PORT = env.PORT || 5000;
  */
 const getLocalIP = () => {
     const interfaces = os.networkInterfaces();
+    let fallback = null;
+
     for (const name of Object.keys(interfaces)) {
         for (const iface of interfaces[name]) {
-            if (iface.family === "IPv4" && !iface.internal) {
-                return iface.address;
+            if (iface.family !== "IPv4" || iface.internal) continue;
+
+            const ip = iface.address;
+            // Skip known VPN/tunnel subnets (Cloudflare WARP, Tailscale, etc.)
+            const isVPN = ip.startsWith("10.2.") || ip.startsWith("100.");
+
+            if (!isVPN) {
+                return ip; // Return first real LAN IP found
             }
+
+            if (!fallback) fallback = ip; // Keep VPN as last resort
         }
     }
-    return "localhost";
+
+    return fallback || "localhost";
 };
 
 async function startServer(){
