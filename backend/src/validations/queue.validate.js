@@ -52,6 +52,8 @@ export const createQueueSchema = {
 
 export const trackQueueSchema = {
   params: z.object({
-    tokenId: z.string().uuid("Invalid tokenId format"),
+    number: z
+      .string()
+      .regex(/^[6-9]\d{9}$/, "Invalid Indian phone number"),
   }),
 };
