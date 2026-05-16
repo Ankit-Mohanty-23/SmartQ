@@ -473,6 +473,21 @@ export async function getQueueService(doctorId, date) {
       orderBy: {
         tokenNumber: "asc",
       },
+      select: {
+        id: true,
+        tokenNumber: true,
+        patientName: true,
+        patientPhone: true,
+        patientAge: true,
+        patientGender: true,
+        reasonForVisit: true,
+        status: true,
+        estimatedStartTime: true,
+        estimatedEndTime: true,
+        actualStartTime: true,
+        actualEndTime: true,
+        predictedDurationMinutes: true,
+      },
     });
   }
 }
@@ -481,35 +496,46 @@ export async function getQueueService(doctorId, date) {
  * Get Queue data for patients
  */
 
-export async function getPatientViewService({ tokenId }) {
+export async function getPatientViewService({ phoneNumber }) {
   try {
-    const redisToken = await getTokenData(tokenId);
+    // Fetch from DB first to get the token's UUID (needed for Redis key)
+    const token = await prisma.queue.findFirst({
+      where: {
+        patientPhone: phoneNumber,
+        status: { in: ["WAITING", "IN_PROGRESS"] },
+      },
+      include: {
+        doctorProfile: {
+          select: {
+            specialization: true,
+            user: { select: { name: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (!token) {
+      throw new AppError("Token not found", 404);
+    }
+
+    const redisToken = await getTokenData(token.id);
 
     if (redisToken) {
       // In a real production system, you'd also fetch metadata like doctorName from a doctor cache
       // For now, we fetch details from DB but use Redis for the live queue context
-      const token = await prisma.queue.findUnique({
-        where: { id: tokenId },
-        include: {
-          doctorProfile: {
-            select: {
-              specialization: true,
-              user: { select: { name: true } },
-            },
-          },
-        },
-      });
-
       const dateStr = token.appointmentDate.toISOString().split("T")[0];
       const servingNum = await redis.get(
         `serving:${token.doctorProfileId}:${dateStr}`,
       );
 
       const liveQueue = await getLiveQueue(token.doctorProfileId, dateStr);
-      const myIndex = liveQueue.findIndex((t) => t.id === tokenId);
-      const patientsAhead = liveQueue.filter(
-        (t, i) => i < myIndex && t.status === "WAITING",
-      ).length;
+      const myIndex = liveQueue ? liveQueue.findIndex((t) => t.id === token.id) : -1;
+      const patientsAhead = liveQueue
+        ? liveQueue.filter(
+            (t, i) => i < myIndex && t.status === "WAITING",
+          ).length
+        : 0;
 
       return {
         tokenNumber: parseInt(redisToken.tokenNumber),
@@ -517,23 +543,29 @@ export async function getPatientViewService({ tokenId }) {
         currentlyServing: servingNum ? parseInt(servingNum) : null,
         patientsAhead,
         estimatedStartTime: redisToken.estimatedStartTime,
-        estimatedWaitMinutes: liveQueue
-          .slice(0, myIndex)
-          .reduce((sum, t) => sum + parseFloat(t.predictedDurationMinutes), 0),
+        estimatedWaitMinutes: liveQueue && myIndex >= 0
+          ? liveQueue
+              .slice(0, myIndex)
+              .reduce((sum, t) => sum + parseFloat(t.predictedDurationMinutes), 0)
+          : 0,
         isDrifting: token.isDrifting,
         doctorName: token.doctorProfile.user.name,
         specialization: token.doctorProfile.specialization,
       };
     }
   } catch (err) {
+    if (err instanceof AppError) throw err;
     logger.warn(
       `[REDIS] Cache retrieval failed | Action: getPatientViewService | Reason: ${err.message} | Action: Falling back to DB`,
     );
   }
 
   // DB Fallback Logic
-  const token = await prisma.queue.findUnique({
-    where: { id: tokenId },
+  const token = await prisma.queue.findFirst({
+    where: {
+      patientPhone: phoneNumber,
+      status: { in: ["WAITING", "IN_PROGRESS"] },
+    },
     include: {
       doctorProfile: {
         select: {
@@ -542,6 +574,7 @@ export async function getPatientViewService({ tokenId }) {
         },
       },
     },
+    orderBy: { createdAt: "desc" },
   });
 
   if (!token) {
