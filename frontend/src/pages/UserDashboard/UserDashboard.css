@@ -64,7 +64,9 @@ body {
   width: 130px;
   margin-bottom: 5px;
 }
-
+.titleh2{
+  margin-bottom: 8px;
+}
 .name {
   font-size: 24px;
   color: #022c22;

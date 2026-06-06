@@ -119,11 +119,11 @@ export default function AppointmentRequests({ setView }) {
                 <p className="appt-meta">
                   Requested: {a.preferredDate} ·{" "}
                   {requestedDoc
-                    ? `Prefers: ${requestedDoc.name}`
+                    ? `Prefers: ${requestedDoc.user?.name}`
                     : "No preference"}{" "}
                   ·{" "}
                   {assignedDoc
-                    ? `Assigned: ${assignedDoc.name}`
+                    ? `Assigned: ${assignedDoc.user?.name}`
                     : "Not assigned"}
                 </p>
               </div>
@@ -138,14 +138,14 @@ export default function AppointmentRequests({ setView }) {
                   className="appt-select"
                   value={a.assignedDoctorId || ""}
                   onChange={(e) =>
-                    handleDoctorChange(a.id, Number(e.target.value))
+                    handleDoctorChange(a.id, e.target.value)
                   }
                 >
                   <option value="">Assign doctor...</option>
 
                   {doctors.map((d) => (
                     <option key={d.id} value={d.id}>
-                      {d.name}{" "}
+                      {d.user?.name}{" "}
                       {d.id === a.requestedDoctorId ? "(Preferred)" : ""}
                     </option>
                   ))}
