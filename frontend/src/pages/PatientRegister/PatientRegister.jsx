@@ -1,12 +1,15 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import "./PatientRegister.css";
 import logo from "../../assets/logo.png";
 import { Link, useNavigate } from "react-router-dom";
 import { bookAppointment } from "../../services/patientRegisterService";
+import { getAllDoctors } from "../../services/doctorService";
 
 export default function PatientRegister() {
   const navigate = useNavigate();
 
+  const [loading, setLoading] = useState(false);
+  const [doctors, setDoctors] = useState([]);
   const [form, setForm] = useState({
     name: "",
     age: "",
@@ -16,13 +19,14 @@ export default function PatientRegister() {
     address: "",
     doctor: "",
     checkupType: "",
+    preferredDate: "",
+    preferredTime: "",
     problem: "",
     customProblem: "",
   });
 
   const [msg, setMsg] = useState("");
 
-  // 🔍 Problem search states
   const [problemSearch, setProblemSearch] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
 
@@ -36,20 +40,42 @@ export default function PatientRegister() {
     "Skin Allergy",
   ];
 
+  useEffect(() => {
+    const loadDoctors = async () => {
+      try {
+        const data = await getAllDoctors();
+        setDoctors(data || []);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
+    loadDoctors();
+  }, []);
+
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  // REAL BACKEND SUBMIT
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!form.name || !form.phone || !form.doctor) {
-      setMsg("Fill required fields");
+    if (
+      !form.name ||
+      !form.age ||
+      !form.gender ||
+      !form.phone ||
+      !problemSearch
+    ) {
+      setMsg("Please fill all required fields");
       return;
     }
 
     try {
+      setLoading(true);
+
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+
       const dataToSend = {
         ...form,
         problem: problemSearch || form.problem,
@@ -66,7 +92,13 @@ export default function PatientRegister() {
       });
     } catch (err) {
       console.log(err);
-      setMsg("❌ Server error");
+
+      setMsg(
+        err.response?.data?.message ||
+          "Unable to book appointment. Please try again.",
+      );
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -74,7 +106,6 @@ export default function PatientRegister() {
     <div className="page">
       <div className="header">
         <Link to="/">
-          {" "}
           <img src={logo} className="title" alt="logo" />
         </Link>
         <p>Patient Registration & Queue</p>
@@ -88,36 +119,39 @@ export default function PatientRegister() {
           <div className="grid">
             <input
               name="name"
-              placeholder="Full Name"
+              placeholder="Full Name *"
               value={form.name}
               onChange={handleChange}
             />
+
             <input
               name="age"
               type="number"
-              placeholder="Age"
+              placeholder="Age *"
               value={form.age}
               onChange={handleChange}
             />
 
             <select name="gender" value={form.gender} onChange={handleChange}>
-              <option value="">Gender</option>
+              <option value="">Gender *</option>
               <option>Male</option>
               <option>Female</option>
             </select>
 
             <input
               name="phone"
-              placeholder="Phone"
+              placeholder="Phone *"
               value={form.phone}
               onChange={handleChange}
             />
+
             <input
               name="email"
               placeholder="Email"
               value={form.email}
               onChange={handleChange}
             />
+
             <input
               name="address"
               placeholder="Address"
@@ -133,11 +167,28 @@ export default function PatientRegister() {
 
           <div className="grid">
             <select name="doctor" value={form.doctor} onChange={handleChange}>
-              <option value="">Doctor</option>
-              <option>Dr. Sharma (General)</option>
-              <option>Dr. Reddy (Cardio)</option>
-              <option>Dr. Khan (Ortho)</option>
+              <option value="">Select Doctor *</option>
+
+              {doctors.map((doc) => (
+                <option key={doc.id} value={doc.id}>
+                  Dr. {doc.user?.name} ({doc.specialization})
+                </option>
+              ))}
             </select>
+
+            <input
+              type="date"
+              name="preferredDate"
+              value={form.preferredDate}
+              onChange={handleChange}
+            />
+
+            <input
+              type="time"
+              name="preferredTime"
+              value={form.preferredTime}
+              onChange={handleChange}
+            />
 
             <select
               name="checkupType"
@@ -145,15 +196,15 @@ export default function PatientRegister() {
               onChange={handleChange}
             >
               <option value="">Checkup Type</option>
+
               <option>Regular</option>
               <option>Specific</option>
             </select>
           </div>
         </div>
-
         {/* Problem */}
         <div className="section">
-          <h3>Problem</h3>
+          <h3>Problem *</h3>
 
           <div className="searchDropdown">
             <input
@@ -163,7 +214,10 @@ export default function PatientRegister() {
               onChange={(e) => {
                 setProblemSearch(e.target.value);
                 setShowDropdown(true);
-                setForm({ ...form, problem: e.target.value });
+                setForm({
+                  ...form,
+                  problem: e.target.value,
+                });
               }}
               onFocus={() => setShowDropdown(true)}
               onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
@@ -179,9 +233,14 @@ export default function PatientRegister() {
                     <div
                       key={i}
                       className="dropdownItem"
-                      onClick={() => {
+                      onMouseDown={() => {
                         setProblemSearch(p);
-                        setForm({ ...form, problem: p });
+
+                        setForm((prev) => ({
+                          ...prev,
+                          problem: p,
+                        }));
+
                         setShowDropdown(false);
                       }}
                     >
@@ -208,7 +267,9 @@ export default function PatientRegister() {
           />
         </div>
 
-        <button className="submitBtn">Generate Token</button>
+        <button className="submitBtn" disabled={loading}>
+          {loading ? "Generating Token..." : "Generate Token"}
+        </button>
 
         {msg && <p className="msg">{msg}</p>}
       </form>
