@@ -2,7 +2,7 @@ import axios from "axios";
 
 const BASE_URLS = {
   local: "http://localhost:5000/api/v1",
-  network: "http://10.190.37.111:5000/api/v1",
+  network: "http://10.190.36.105:5000/api/v1",
 };
 
 const API = axios.create({

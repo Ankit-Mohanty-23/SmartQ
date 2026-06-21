@@ -7,6 +7,7 @@ import {
 
 export default function NewBooking() {
   const [doctors, setDoctors] = useState([]);
+
   const [form, setForm] = useState({
     doctorId: "",
     name: "",
@@ -14,9 +15,9 @@ export default function NewBooking() {
     age: "",
     visitType: "NEW",
     problem: "Walk-in",
+    appointmentDate: new Date().toISOString().split("T")[0],
   });
 
-  // 🔹 load doctors
   useEffect(() => {
     const loadDoctors = async () => {
       try {
@@ -30,12 +31,13 @@ export default function NewBooking() {
     loadDoctors();
   }, []);
 
-  // 🔹 handle input
   const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+    setForm({
+      ...form,
+      [e.target.name]: e.target.value,
+    });
   };
 
-  // 🔥 MAIN LOGIC
   const handleSubmit = async () => {
     try {
       if (!form.doctorId) {
@@ -50,7 +52,7 @@ export default function NewBooking() {
         patientGender: "MALE",
         problem: form.problem,
         visitType: form.visitType,
-        preferredDate: new Date().toISOString(),
+        preferredDate: form.appointmentDate,
       });
 
       await convertToToken(appointment.id, form.doctorId);
@@ -64,8 +66,8 @@ export default function NewBooking() {
         age: "",
         visitType: "NEW",
         problem: "Walk-in",
+        appointmentDate: new Date().toISOString().split("T")[0],
       });
-
     } catch (err) {
       console.error(err);
       alert("Something went wrong");
@@ -74,30 +76,23 @@ export default function NewBooking() {
 
   return (
     <div className="rq-right">
-      {/* Header */}
       <div className="rq-header">
         <div>
           <h2>New token</h2>
-          <p className="rq-sub">
-            Book a walk-in or pre-booked patient
-          </p>
+          <p className="rq-sub">Book a walk-in or pre-booked patient</p>
         </div>
       </div>
 
-      {/* Form */}
       <div className="nb-form-grid">
-
         <div>
           <label>Doctor</label>
-          <select
-            name="doctorId"
-            value={form.doctorId}
-            onChange={handleChange}
-          >
+
+          <select name="doctorId" value={form.doctorId} onChange={handleChange}>
             <option value="">Select doctor</option>
+
             {doctors.map((d) => (
               <option key={d.id} value={d.id}>
-                {d.user?.name}
+                {d.user?.name} ({d.specialization})
               </option>
             ))}
           </select>
@@ -105,15 +100,18 @@ export default function NewBooking() {
 
         <div>
           <label>Date</label>
+
           <input
             type="date"
-            disabled
-            value={new Date().toISOString().split("T")[0]}
+            name="appointmentDate"
+            value={form.appointmentDate}
+            onChange={handleChange}
           />
         </div>
 
         <div>
           <label>Patient name</label>
+
           <input
             name="name"
             placeholder="Full name"
@@ -124,6 +122,7 @@ export default function NewBooking() {
 
         <div>
           <label>Phone number</label>
+
           <input
             name="phone"
             placeholder="+91..."
@@ -134,6 +133,7 @@ export default function NewBooking() {
 
         <div>
           <label>Age</label>
+
           <input
             type="number"
             name="age"
@@ -144,19 +144,21 @@ export default function NewBooking() {
 
         <div>
           <label>Visit type</label>
+
           <select
             name="visitType"
             value={form.visitType}
             onChange={handleChange}
           >
             <option value="NEW">New</option>
+
             <option value="FOLLOW_UP">Follow-up</option>
+
             <option value="EMERGENCY">Emergency</option>
           </select>
         </div>
       </div>
 
-      {/* ✅ FIXED BUTTON CLASS */}
       <button className="nb-confirm-btn" onClick={handleSubmit}>
         Confirm booking
       </button>
