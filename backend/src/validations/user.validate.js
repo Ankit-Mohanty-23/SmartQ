@@ -13,10 +13,29 @@ export const registerUserSchema = {
       email: z.string().trim().email().toLowerCase(),
       password: z.string().min(6).max(50),
       role: z.enum(roles),
-      specialization: z.string().trim().min(3).max(100).optional(),
-      workStartTime: z.string().optional(),
-      workEndTime: z.string().optional(),
-      averageConsultationMinutes: z.number().int().positive().optional(),
+      // Doctor-specific fields — always optional at schema level.
+      specialization: z.preprocess(
+        (val) => (typeof val === "string" && val.trim() === "" ? undefined : val),
+        z.string().trim().min(3).max(100).optional()
+      ),
+      workStartTime: z.preprocess(
+        (val) =>
+          typeof val === "string" && (val.trim() === "" || val.trim() === "undefined")
+            ? undefined
+            : val,
+        z.string().optional()
+      ),
+      workEndTime: z.preprocess(
+        (val) =>
+          typeof val === "string" && (val.trim() === "" || val.trim() === "undefined")
+            ? undefined
+            : val,
+        z.string().optional()
+      ),
+      averageConsultationMinutes: z.preprocess(
+        (val) => (val === "" || val === null ? undefined : val),
+        z.number().int().positive().optional()
+      ),
     })
     .superRefine((data, ctx) => {
       if (data.role === "DOCTOR") {
@@ -24,7 +43,7 @@ export const registerUserSchema = {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             path: ["specialization"],
-            message: "Doctor must have specialization",
+            message: "Specialization is required for doctors",
           });
         }
 
@@ -32,7 +51,7 @@ export const registerUserSchema = {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             path: ["workStartTime"],
-            message: "Doctor must have workStartTime",
+            message: "Work start time is required for doctors",
           });
         }
 
@@ -40,7 +59,15 @@ export const registerUserSchema = {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             path: ["workEndTime"],
-            message: "Doctor must have workEndTime",
+            message: "Work end time is required for doctors",
+          });
+        }
+
+        if (!data.averageConsultationMinutes) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["averageConsultationMinutes"],
+            message: "Average consultation minutes is required for doctors",
           });
         }
       }
