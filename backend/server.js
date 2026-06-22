@@ -16,6 +16,16 @@ const getLocalIP = () => {
     let fallback = null;
 
     for (const name of Object.keys(interfaces)) {
+        // Skip virtual interfaces (WSL, Hyper-V, VirtualBox, VMware, etc.)
+        const isVirtual = name.toLowerCase().includes("wsl") || 
+                          name.toLowerCase().includes("vethernet") || 
+                          name.toLowerCase().includes("virtual") || 
+                          name.toLowerCase().includes("vmware") || 
+                          name.toLowerCase().includes("virtualbox") || 
+                          name.toLowerCase().includes("vbox");
+
+        if (isVirtual) continue;
+
         for (const iface of interfaces[name]) {
             if (iface.family !== "IPv4" || iface.internal) continue;
 
@@ -42,7 +52,7 @@ async function startServer(){
             const localIP = getLocalIP();
             logger.info(`[SERVER] Startup successful | Environment: ${env.NODE_ENV}`);
             logger.info(`[SERVER] Local Access: http://localhost:${PORT}/api/v1/health`);
-            logger.info(`[SERVER] LAN Access:   http://${localIP}:${PORT}/api/v1/health`);
+            logger.info(`[SERVER] LAN Access: http://${localIP}:${PORT}/api/v1/health`);
             
             registerDriftDetectorJob();
             healthCheck();
