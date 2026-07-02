@@ -40,6 +40,11 @@ export const circuitBreaker = {
 };
 
 async function mlFetch(path, options = {}, attempt = 1) {
+  if (!ML_SERVICE_BASE_URL) {
+    logger.warn(`[ML] ML_SERVICE_URL is not configured. Bypassing request to ${path}`);
+    return null;
+  }
+
   if (circuitBreaker.isOpen()) {
     throw Object.assign(new Error("Circuit breaker open"), {
       code: "CIRCUIT_OPEN",
