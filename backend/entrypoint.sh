@@ -1,36 +1,25 @@
 #!/bin/sh
-
-# Exit immediately if a command exits with a non-zero status.
 set -e
 
 echo "[ENTRYPOINT] Waiting for database to be ready..."
 
-# Wait for postgres to be available
-# We use the DATABASE_URL environment variable to extract the host and port
-# However, a simpler way in Docker is to just try connecting with pg_isready if installed, 
-# or use a simple loop with nc (netcat) which is usually in alpine.
-until nc -z db 5432; do
-  echo "[ENTRYPOINT] Database is unavailable - sleeping"
-  sleep 1
-done
+if [ -n "$DATABASE_URL" ]; then
+  DB_HOST=$(node -e "try { const u = new URL(process.env.DATABASE_URL); process.stdout.write(u.hostname) } catch (e) { process.exit(1) }")
+  DB_PORT=$(node -e "try { const u = new URL(process.env.DATABASE_URL); process.stdout.write(u.port || '5432') } catch (e) { process.exit(1) }")
 
-echo "[ENTRYPOINT] Database is up - executing migrations"
-
-# Run Prisma migrations
-# 'migrate deploy' is best for production-like environments if migrations exist
-# 'migrate dev' is better for development if we want to also sync schema changes
-if [ "$NODE_ENV" = "development" ]; then
-  echo "[ENTRYPOINT] Running prisma db push"
-  npx prisma db push --skip-generate --accept-data-loss
-else
-  echo "[ENTRYPOINT] Running prisma migrate deploy"
-  npx prisma migrate deploy
+  until nc -z "$DB_HOST" "$DB_PORT"; do
+    echo "[ENTRYPOINT] Database is unavailable - sleeping"
+    sleep 1
+  done
 fi
 
-echo "[ENTRYPOINT] Running database seed"
-npx prisma db seed
+echo "[ENTRYPOINT] Database is up - running migrations"
+npx prisma migrate deploy
 
-echo "[ENTRYPOINT] Migrations and seeding completed - starting application"
+if [ "$RUN_SEED" = "true" ]; then
+  echo "[ENTRYPOINT] Running database seed"
+  npx prisma db seed
+fi
 
-# Execute the main command (CMD from Dockerfile)
+echo "[ENTRYPOINT] Starting application"
 exec "$@"
