@@ -1,11 +1,22 @@
 import bcrypt from "bcrypt";
 import prisma from "../src/config/prisma.js";
 import logger from "../src/utils/logger.js";
+import { checkDatabase } from "./checkDb.js";
 
 /**
  * Default Admin Sedding
  */
 async function seedAdmin() {
+  if (!process.env.ADMIN_EMAIL || !process.env.ADMIN_PASSWORD || !process.env.ADMIN_NAME) {
+    logger.error("======================================================");
+    logger.error("🚨 URGENT: DATABASE SEEDING BLOCKED! 🚨");
+    logger.error("The developer forgot to provide the admin credentials in the environment variables.");
+    logger.error("Missing variables: ADMIN_EMAIL, ADMIN_PASSWORD, or ADMIN_NAME");
+    logger.error("Please add them to your deployment dashboard (e.g., Railway) to proceed.");
+    logger.error("======================================================");
+    throw new Error("Missing Admin credentials in environment variables.");
+  }
+
   const existing = await prisma.user.findUnique({
     where: { email: process.env.ADMIN_EMAIL },
   });
@@ -32,6 +43,12 @@ async function seedAdmin() {
 async function main() {
   await seedAdmin();
   await seedSystemSetting();
+
+  logger.info("Running database checks post-seeding...");
+  const checkResult = await checkDatabase();
+  if (!checkResult.success) {
+    throw new Error("Database check failed after seeding.");
+  }
 }
 
 /**
