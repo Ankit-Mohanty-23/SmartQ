@@ -288,6 +288,7 @@ export async function bookTokenService({
 
     return {
       tokenId: token.id,
+      name: token.patientName,
       tokenNumber: nextTokenNumber,
       estimatedStartTime: estimatedStartTime.toISOString(),
       estimatedEndTime: estimatedEndTime.toISOString(),
@@ -309,7 +310,7 @@ export async function markInProgressService(tokenId) {
   });
 
   if (!token) {
-    throw new AppError("Token not found", 404);
+    throw new AppError("Queue Token not found", 404);
   }
 
   if (token.status !== "WAITING") {
@@ -363,7 +364,7 @@ export async function markCompleteService(tokenId) {
   });
 
   if (!token) {
-    throw new AppError("Token not found", 404);
+    throw new AppError("Queue Token not found", 404);
   }
 
   // Lifecycle tracing
@@ -516,7 +517,7 @@ export async function getPatientViewService({ phoneNumber }) {
     });
 
     if (!token) {
-      throw new AppError("Token not found", 404);
+      throw new AppError("Queue Token not found", 404);
     }
 
     const redisToken = await getTokenData(token.id);
@@ -578,7 +579,7 @@ export async function getPatientViewService({ phoneNumber }) {
   });
 
   if (!token) {
-    throw new AppError("Token not found", 404);
+    throw new AppError("Queue Token not found", 404);
   }
 
   const currentlyServing = await prisma.queue.findFirst({
@@ -615,6 +616,7 @@ export async function getPatientViewService({ phoneNumber }) {
   );
 
   return {
+    name: token.patientName,
     tokenNumber: token.tokenNumber,
     status: token.status,
     currentlyServing: currentlyServing?.tokenNumber ?? null,
@@ -637,7 +639,7 @@ export async function cancelQueueService(tokenId, phone) {
   });
 
   if (!token) {
-    throw new AppError("Token not found", 404);
+    throw new AppError("Queue Token not found", 404);
   }
 
   if (token.status === "CANCELLED" || token.status === "COMPLETED") {
