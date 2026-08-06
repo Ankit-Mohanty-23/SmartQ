@@ -10,6 +10,7 @@ export default function PatientRegister() {
 
   const [loading, setLoading] = useState(false);
   const [doctors, setDoctors] = useState([]);
+
   const [form, setForm] = useState({
     name: "",
     age: "",
@@ -44,9 +45,13 @@ export default function PatientRegister() {
     const loadDoctors = async () => {
       try {
         const data = await getAllDoctors();
+
+        console.log("DOCTORS:", data);
+
         setDoctors(data || []);
       } catch (err) {
-        console.error(err);
+        console.error("DOCTOR LOAD ERROR:", err);
+        console.error("BACKEND RESPONSE:", err.response?.data);
       }
     };
 
@@ -54,18 +59,26 @@ export default function PatientRegister() {
   }, []);
 
   const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+
+    setForm((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    setMsg("");
+
+    // Only original required fields
     if (
-      !form.name ||
+      !form.name.trim() ||
       !form.age ||
       !form.gender ||
-      !form.phone ||
-      !problemSearch
+      !form.phone.trim() ||
+      !problemSearch.trim()
     ) {
       setMsg("Please fill all required fields");
       return;
@@ -74,24 +87,50 @@ export default function PatientRegister() {
     try {
       setLoading(true);
 
-      await new Promise((resolve) => setTimeout(resolve, 3000));
+      const problemDetails = form.customProblem.trim()
+        ? `${problemSearch.trim()} - ${form.customProblem.trim()}`
+        : problemSearch.trim();
 
       const dataToSend = {
-        ...form,
-        problem: problemSearch || form.problem,
+        name: form.name.trim(),
+        phone: form.phone.trim(),
+        patientAge: Number(form.age),
+        patientGender: form.gender.toUpperCase(),
+        problem: problemDetails,
+        visitType: "NEW",
+        preferredDate:
+          form.preferredDate || new Date().toISOString().split("T")[0],
+        requestedDoctorId: form.doctor || null,
       };
+      
+      console.log("APPOINTMENT PAYLOAD:", dataToSend);
 
-      const res = await bookAppointment(dataToSend);
+      const appointment = await bookAppointment(dataToSend);
 
-      localStorage.setItem("patientToken", res.data.tokenNumber);
+      console.log("CREATED APPOINTMENT:", appointment);
 
       navigate("/BookingSuccess", {
         state: {
-          bookingId: res.data.bookingId,
+          bookingId: appointment.id,
         },
       });
     } catch (err) {
-      console.log(err);
+      console.error("FULL ERROR:", err);
+      console.error("STATUS:", err.response?.status);
+      console.error("BACKEND RESPONSE:", err.response?.data);
+      console.error("VALIDATION ERRORS:", err.response?.data?.errors);
+
+      const errors = err.response?.data?.errors;
+
+      if (errors && errors.length > 0) {
+        const firstError = errors[0];
+
+        setMsg(
+          firstError?.message || firstError?.msg || JSON.stringify(firstError),
+        );
+
+        return;
+      }
 
       setMsg(
         err.response?.data?.message ||
@@ -108,16 +147,19 @@ export default function PatientRegister() {
         <Link to="/">
           <img src={logo} className="title" alt="logo" />
         </Link>
+
         <p>Patient Registration & Queue</p>
       </div>
 
       <form className="formContainer" onSubmit={handleSubmit}>
         {/* Patient Details */}
+
         <div className="section">
           <h3>Patient Details</h3>
 
           <div className="grid">
             <input
+              type="text"
               name="name"
               placeholder="Full Name *"
               value={form.name}
@@ -127,6 +169,7 @@ export default function PatientRegister() {
             <input
               name="age"
               type="number"
+              min="1"
               placeholder="Age *"
               value={form.age}
               onChange={handleChange}
@@ -134,11 +177,14 @@ export default function PatientRegister() {
 
             <select name="gender" value={form.gender} onChange={handleChange}>
               <option value="">Gender *</option>
-              <option>Male</option>
-              <option>Female</option>
+
+              <option value="Male">Male</option>
+
+              <option value="Female">Female</option>
             </select>
 
             <input
+              type="tel"
               name="phone"
               placeholder="Phone *"
               value={form.phone}
@@ -146,6 +192,7 @@ export default function PatientRegister() {
             />
 
             <input
+              type="email"
               name="email"
               placeholder="Email"
               value={form.email}
@@ -153,6 +200,7 @@ export default function PatientRegister() {
             />
 
             <input
+              type="text"
               name="address"
               placeholder="Address"
               value={form.address}
@@ -162,12 +210,13 @@ export default function PatientRegister() {
         </div>
 
         {/* Appointment */}
+
         <div className="section">
           <h3>Appointment</h3>
 
           <div className="grid">
             <select name="doctor" value={form.doctor} onChange={handleChange}>
-              <option value="">Select Doctor *</option>
+              <option value="">Select Doctor</option>
 
               {doctors.map((doc) => (
                 <option key={doc.id} value={doc.id}>
@@ -197,12 +246,15 @@ export default function PatientRegister() {
             >
               <option value="">Checkup Type</option>
 
-              <option>Regular</option>
-              <option>Specific</option>
+              <option value="Regular">Regular</option>
+
+              <option value="Specific">Specific</option>
             </select>
           </div>
         </div>
+
         {/* Problem */}
+
         <div className="section">
           <h3>Problem *</h3>
 
@@ -212,12 +264,16 @@ export default function PatientRegister() {
               placeholder="Search or type problem..."
               value={problemSearch}
               onChange={(e) => {
-                setProblemSearch(e.target.value);
+                const value = e.target.value;
+
+                setProblemSearch(value);
+
                 setShowDropdown(true);
-                setForm({
-                  ...form,
-                  problem: e.target.value,
-                });
+
+                setForm((prev) => ({
+                  ...prev,
+                  problem: value,
+                }));
               }}
               onFocus={() => setShowDropdown(true)}
               onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
@@ -267,8 +323,8 @@ export default function PatientRegister() {
           />
         </div>
 
-        <button className="submitBtn" disabled={loading}>
-          {loading ? "Generating Token..." : "Generate Token"}
+        <button type="submit" className="submitBtn" disabled={loading}>
+          {loading ? "Booking Appointment..." : "Book Appointment"}
         </button>
 
         {msg && <p className="msg">{msg}</p>}
