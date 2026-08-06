@@ -103,7 +103,7 @@ export default function UserDashboard() {
               <div className="left-info">
                 <img src={logo} className="title" alt="logo" />
 
-                <h2 className="name">{patient.patientName || "Patient"}</h2>
+                <h2 className="name">{patient.name|| "Patient"}</h2>
               </div>
 
               <div className={`queue-box small ${urgent ? "urgent-box" : ""}`}>

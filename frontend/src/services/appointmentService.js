@@ -7,6 +7,7 @@ export const trackQueueByDoctor = async (doctorId, date) => {
 
   return res.data.data;
 };
+
 // Queue screen (doctor-wise)
 export const getAppointmentsByDoctor = async (doctorId) => {
   const res = await API.get("/appointments", {
@@ -16,7 +17,7 @@ export const getAppointmentsByDoctor = async (doctorId) => {
   return res.data.data;
 };
 
-// Appointment Requests (ALL + optional filter)
+// Appointment Requests
 export const getAppointments = async (status) => {
   const res = await API.get("/appointments", {
     params: status && status !== "ALL" ? { status } : {},
@@ -28,18 +29,29 @@ export const getAppointments = async (status) => {
 // Create appointment
 export const createAppointment = async (data) => {
   const res = await API.post("/appointments", data);
+
   return res.data.data;
 };
 
-export const convertToToken = async (appointmentId, doctorProfileId) => {
-  const res = await API.post("/appointments/convert", {
+// Convert appointment to token
+export const convertToToken = async (
+  appointmentId,
+  doctorProfileId
+) => {
+  const res = await API.put("/appointments/convert", {
+    
     appointmentId,
     doctorProfileId,
   });
+
   return res.data.data;
 };
 
+// Reject appointment
 export const rejectAppointment = async (appointmentId) => {
-  const res = await API.get(`/appointments/${appointmentId}/reject`);
+  const res = await API.patch(
+    `/appointments/${appointmentId}/reject`
+  );
+
   return res.data.data;
 };
